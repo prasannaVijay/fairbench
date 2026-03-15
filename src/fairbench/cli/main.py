@@ -299,6 +299,42 @@ async def _show_run(run_id: str) -> None:
 
 
 @app.command()
+def scorecard(
+    run_id: str = typer.Argument(..., help="Run ID to generate scorecard for"),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file path (JSON). Prints to stdout if omitted."
+    ),
+) -> None:
+    """Generate a JSON scorecard for a completed evaluation run."""
+    asyncio.run(_generate_scorecard(run_id, output))
+
+
+async def _generate_scorecard(run_id: str, output: Optional[Path]) -> None:
+    """Load run and produce scorecard."""
+    import json
+
+    from fairbench.core.engine import FairBenchEngine
+    from fairbench.reporting.scorecard import generate_scorecard
+
+    engine = FairBenchEngine()
+    run = await engine.get_run(run_id)
+    await engine.close()
+
+    if not run:
+        console.print(f"[red]Run not found: {run_id}[/red]")
+        raise typer.Exit(1)
+
+    card = generate_scorecard(run)
+    json_str = json.dumps(card, indent=2)
+
+    if output:
+        output.write_text(json_str)
+        console.print(f"[green]Scorecard saved to: {output}[/green]")
+    else:
+        console.print(json_str)
+
+
+@app.command()
 def init(
     path: Path = typer.Option(
         Path("fairbench.yaml"), "--output", "-o", help="Output path for config"
