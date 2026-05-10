@@ -20,12 +20,16 @@ from fairbench.core.types import (
     Scenario,
 )
 from fairbench.counterfactual.generator import CounterfactualGenerator, ExpandedPrompt
+from fairbench.evaluation.demographic import DemographicClassifier
 from fairbench.evaluation.embeddings import EmbeddingEvaluator
 from fairbench.evaluation.pipeline import EvaluationPipeline
+from fairbench.evaluation.refusal import RefusalClassifier
 from fairbench.evaluation.sentiment import SentimentEvaluator
 from fairbench.evaluation.toxicity import ToxicityEvaluator
+from fairbench.evaluation.triage import TriageRouter
 from fairbench.metrics.base import Metric
 from fairbench.metrics.cds import CounterfactualDivergenceScore
+from fairbench.metrics.dsi import DifferentialServiceIndex
 from fairbench.metrics.hsi import HarmSeverityIndex
 from fairbench.metrics.ode import OutputDiversityEntropy
 from fairbench.metrics.rsi import RepresentationSkewIndex
@@ -46,8 +50,8 @@ class FairBenchEngine:
     - Result storage and reporting
     """
 
-    # Default metrics
-    DEFAULT_METRICS = ["CDS", "RSI", "SAR", "ODE", "HSI"]
+    # Default metrics — all six from the FAIRBench specification
+    DEFAULT_METRICS = ["RSI", "ODE", "CDS", "HSI", "SAR", "DSI"]
 
     def __init__(
         self,
@@ -66,14 +70,18 @@ class FairBenchEngine:
         self.adapter_registry = get_adapter_registry()
         self.counterfactual_generator = CounterfactualGenerator()
 
-        # Initialize metrics
+        # Initialize metrics — all six from the FAIRBench specification
         self._metrics: dict[str, Metric] = {
-            "CDS": CounterfactualDivergenceScore(),
             "RSI": RepresentationSkewIndex(),
-            "SAR": StereotypeAmplificationRatio(),
             "ODE": OutputDiversityEntropy(),
+            "CDS": CounterfactualDivergenceScore(),
             "HSI": HarmSeverityIndex(),
+            "SAR": StereotypeAmplificationRatio(),
+            "DSI": DifferentialServiceIndex(),
         }
+
+        # Layer 2 judge evaluators (opt-in, added via add_layer2_judge())
+        self._layer2_judges: list[Any] = []
 
     def register_adapter(self, name: str, adapter: ModelAdapter) -> None:
         """Register a custom model adapter.
@@ -165,6 +173,9 @@ class FairBenchEngine:
                 outputs, metrics or self.DEFAULT_METRICS, baseline
             )
 
+            # Layer 3: triage — flag outputs for human review
+            triage_summary = self._triage(outputs, metric_results)
+
             # Update run with results
             run = EvaluationRun(
                 **{
@@ -173,6 +184,10 @@ class FairBenchEngine:
                     "completed_at": datetime.now(timezone.utc),
                     "outputs": outputs,
                     "metric_results": metric_results,
+                    "config_snapshot": {
+                        **run.config_snapshot,
+                        "triage_summary": triage_summary,
+                    },
                 }
             )
 
@@ -217,17 +232,87 @@ class FairBenchEngine:
         """Expand scenarios into prompts including counterfactuals."""
         return self.counterfactual_generator.expand_scenarios(scenarios)
 
+    def _triage(
+        self,
+        outputs: list[EvaluatedOutput],
+        metric_results: list[MetricResult],
+    ) -> dict[str, Any]:
+        """Run Layer 3 triage and return a summary dict for the scorecard."""
+        router = TriageRouter()
+        flags = router.triage(outputs, metric_results)
+        return router.summary(flags)
+
+    def add_layer2_judge(
+        self,
+        judges: list[Any],
+        mode: str = "fairness",
+        demographic_context: str = "",
+        model_under_test_provider: str | None = None,
+        calibration_validated: bool = False,
+        calibration_notes: str = "",
+    ) -> None:
+        """Add a Layer 2 LLM judge evaluator to the default pipeline.
+
+        This is a convenience method for configuring the optional Layer 2
+        evaluation stack. The judge is added to any pipeline created by
+        _create_pipeline() after this call.
+
+        Per the spec, the judge must NOT be from the same provider family
+        as the model under test. Pass model_under_test_provider to enforce this.
+
+        Args:
+            judges: List of JudgeModel instances (use ≥2 from different providers).
+            mode: "fairness" (SAR/HSI) or "helpfulness" (DSI proxy).
+            demographic_context: Description of the demographic group.
+            model_under_test_provider: Provider of the model being evaluated.
+            calibration_validated: Whether the judge has been calibrated.
+            calibration_notes: Free-text calibration documentation.
+        """
+        from fairbench.evaluation.llm_judge import LLMJudgeEvaluator
+        judge_evaluator = LLMJudgeEvaluator(
+            judges=judges,
+            mode=mode,
+            demographic_context=demographic_context,
+            model_under_test_provider=model_under_test_provider,
+            calibration_validated=calibration_validated,
+            calibration_notes=calibration_notes,
+        )
+        self._layer2_judges.append(judge_evaluator)
+
+    def _create_pipeline(
+
     def _create_pipeline(
         self,
         adapter: ModelAdapter,
         generation_config: GenerationConfig | None,
         concurrency: int,
     ) -> EvaluationPipeline:
-        """Create the evaluation pipeline with evaluators."""
+        """Create the evaluation pipeline with the three-layer evaluator stack.
+
+        Layer 1 (deterministic classifiers — always on):
+          - DemographicClassifier: pronoun + name signals for RSI/ODE/CDS
+          - RefusalClassifier: rule-based refusal detection for DSI
+          - ToxicityEvaluator: Detoxify/local model for HSI
+          - SentimentEvaluator: for CDS sentiment divergence component
+          - EmbeddingEvaluator: for CDS/ODE embedding-based diversity
+
+        Layer 2 (LLM judges — opt-in via add_layer2_judge() / configure_llm_judge()):
+          Not included in the default pipeline. Add explicitly with
+          engine.add_layer2_judge(judges=[...], mode="fairness"|"helpfulness").
+
+        Layer 3 (triage — always on, runs post-evaluation):
+          TriageRouter is run after outputs are produced; results are stored
+          in run.config_snapshot["triage_summary"].
+        """
         evaluators = [
-            EmbeddingEvaluator(device="cpu"),
+            # Layer 1: deterministic classifiers
+            DemographicClassifier(),
+            RefusalClassifier(),
             ToxicityEvaluator(backend="local"),
             SentimentEvaluator(),
+            EmbeddingEvaluator(device="cpu"),
+            # Layer 2: optional LLM judges (added via add_layer2_judge())
+            *self._layer2_judges,
         ]
 
         return EvaluationPipeline(

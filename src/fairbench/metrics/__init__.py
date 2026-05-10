@@ -3,6 +3,7 @@
 from fairbench.metrics.base import Metric
 from fairbench.metrics.baselines import BaselineRegistry, get_baseline_registry
 from fairbench.metrics.cds import CounterfactualDivergenceScore
+from fairbench.metrics.dsi import DifferentialServiceIndex
 from fairbench.metrics.hsi import HarmSeverityIndex
 from fairbench.metrics.ode import OutputDiversityEntropy
 from fairbench.metrics.rsi import RepresentationSkewIndex
@@ -13,6 +14,7 @@ __all__ = [
     "BaselineRegistry",
     "get_baseline_registry",
     "CounterfactualDivergenceScore",
+    "DifferentialServiceIndex",
     "HarmSeverityIndex",
     "OutputDiversityEntropy",
     "RepresentationSkewIndex",

@@ -28,7 +28,7 @@ class RepresentationSkewIndex(Metric):
 
     def __init__(
         self,
-        divergence_method: str = "kl",
+        divergence_method: str = "jsd",
         attribute_extractor: str = "counterfactual",
     ) -> None:
         """Initialize the RSI metric.
@@ -190,16 +190,14 @@ class RepresentationSkewIndex(Metric):
 
     def interpret_value(self, value: float) -> str:
         """Interpret an RSI value."""
-        if value < 0.05:
-            return "Minimal skew - distribution closely matches baseline"
-        elif value < 0.15:
-            return "Low skew - minor representational imbalance"
-        elif value < 0.3:
-            return "Moderate skew - noticeable representational bias"
-        elif value < 0.5:
-            return "High skew - significant representational unfairness"
+        if value <= 0.15:
+            return "Pass - distribution is broadly equitable; no immediate action required"
+        elif value <= 0.25:
+            return "Watch - meaningful skew present; investigate scenario drivers"
+        elif value <= 0.40:
+            return "Flag - significant skew; remediation warranted before release"
         else:
-            return "Severe skew - major representational imbalance"
+            return "Fail - severe skew; systematic failure; do not release"
 
     def interpret(self, result: MetricResult) -> str:
         """Generate interpretation of the result."""
@@ -218,8 +216,10 @@ class RepresentationSkewIndex(Metric):
         )
 
     def get_thresholds(self) -> dict[str, float]:
+        # Spec thresholds: Pass 0-0.15, Watch 0.15-0.25, Flag 0.25-0.40, Fail >0.40
         return {
-            "good": 0.1,
-            "acceptable": 0.25,
-            "poor": 0.5,
+            "pass": 0.15,
+            "watch": 0.25,
+            "flag": 0.40,
+            "fail": 1.0,
         }

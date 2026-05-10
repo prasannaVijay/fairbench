@@ -179,6 +179,10 @@ class EvaluatedOutput(BaseModel):
     detected_entities: dict[str, list[str]] = Field(default_factory=dict)
     custom_evaluations: dict[str, Any] = Field(default_factory=dict)
 
+    # Service quality signals (used by DSI)
+    is_refusal: bool | None = None   # True if the model declined to respond substantively
+    helpfulness_score: float | None = None  # Human or proxy rating 1-5
+
     model_config = {"frozen": True}
 
 

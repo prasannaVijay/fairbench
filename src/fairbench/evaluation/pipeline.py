@@ -104,6 +104,8 @@ class EvaluationPipeline:
         eval_results = await self._evaluate_one(output)
 
         # Combine into EvaluatedOutput
+        # Pull Layer 1 refusal signal and Layer 2 helpfulness score into
+        # dedicated typed fields so DSI and TriageRouter can access them directly.
         return EvaluatedOutput(
             id=uuid4(),
             output=output,
@@ -116,9 +118,14 @@ class EvaluationPipeline:
             toxicity=eval_results.get("toxicity"),
             sentiment=eval_results.get("sentiment"),
             detected_entities=eval_results.get("entities", {}),
+            is_refusal=eval_results.get("is_refusal"),
+            helpfulness_score=eval_results.get("helpfulness_score"),
             custom_evaluations={
                 k: v for k, v in eval_results.items()
-                if k not in ("embedding", "toxicity", "sentiment", "entities")
+                if k not in (
+                    "embedding", "toxicity", "sentiment", "entities",
+                    "is_refusal", "helpfulness_score",
+                )
             },
         )
 
@@ -223,9 +230,14 @@ class EvaluationPipeline:
                     toxicity=eval_results.get("toxicity"),
                     sentiment=eval_results.get("sentiment"),
                     detected_entities=eval_results.get("entities", {}),
+                    is_refusal=eval_results.get("is_refusal"),
+                    helpfulness_score=eval_results.get("helpfulness_score"),
                     custom_evaluations={
                         k: v for k, v in eval_results.items()
-                        if k not in ("embedding", "toxicity", "sentiment", "entities")
+                        if k not in (
+                            "embedding", "toxicity", "sentiment", "entities",
+                            "is_refusal", "helpfulness_score",
+                        )
                     },
                 )
             )
