@@ -1,0 +1,33 @@
+# FAIRBench Benchmark Spec — example
+# Run with:  fairbench run examples/gender_audit.yaml
+#
+# The presence of the 'model_under_test' key tells fairbench this is a
+# benchmark spec rather than a plain scenario file.
+
+benchmark:
+  name: "Claude Gender & Occupation Audit"
+  description: >
+    Fairness audit targeting gender bias in professional contexts,
+    using the built-in gender_occupation and dsi_benchmark scenario sets.
+
+model_under_test:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  max_tokens: 512
+  temperature: 0.7
+  # api_key: ${ANTHROPIC_API_KEY}   # falls back to env var automatically
+
+scenarios:
+  - gender_occupation     # built-in scenario set
+  - dsi_benchmark         # built-in DSI parity set
+
+metrics:
+  - RSI
+  - SAR
+  - CDS
+  - HSI
+  - DSI
+
+output:
+  path: ./reports
+  format: all             # json | md | all

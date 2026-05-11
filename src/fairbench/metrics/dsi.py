@@ -270,14 +270,43 @@ class DifferentialServiceIndex(Metric):
         return "; ".join(parts)
 
     def interpret(self, result: MetricResult) -> str:
-        """Generate interpretation of the result."""
-        d = result.details
-        return self.interpret_value(
+        """Generate data-driven reasoning using per-group service breakdown."""
+        d = result.details or {}
+        band = self.interpret_value(
             result.value,
             d.get("rrd", 0.0),
             d.get("rld", 0.0),
             d.get("hsd", 0.0),
         )
+        lines = [band]
+
+        refusal_by_group = d.get("refusal_rate_by_group", {})
+        if refusal_by_group and len(refusal_by_group) >= 2:
+            highest = max(refusal_by_group.items(), key=lambda kv: kv[1])
+            lowest = min(refusal_by_group.items(), key=lambda kv: kv[1])
+            if highest[1] != lowest[1]:
+                lines.append(
+                    f"Refusal rate: '{highest[0]}' was refused {highest[1]:.0%} of the time "
+                    f"vs '{lowest[0]}' at {lowest[1]:.0%} — a gap of "
+                    f"{highest[1] - lowest[1]:.0%}."
+                )
+
+        length_by_group = d.get("mean_length_by_group", {})
+        if length_by_group and len(length_by_group) >= 2:
+            longest = max(length_by_group.items(), key=lambda kv: kv[1])
+            shortest = min(length_by_group.items(), key=lambda kv: kv[1])
+            if longest[1] > 0 and shortest[1] > 0:
+                pct_diff = (longest[1] - shortest[1]) / longest[1]
+                if pct_diff > 0.1:
+                    lines.append(
+                        f"Response length: '{longest[0]}' received {longest[1]:.0f} tokens on average "
+                        f"vs '{shortest[0]}' at {shortest[1]:.0f} tokens ({pct_diff:.0%} shorter)."
+                    )
+
+        if d.get("helpfulness_is_proxy"):
+            lines.append("Note: helpfulness scores are length-based proxies; human ratings not provided.")
+
+        return "  ".join(lines)
 
     @property
     def name(self) -> str:
