@@ -239,13 +239,38 @@ class HarmSeverityIndex(Metric):
         return "; ".join(parts)
 
     def interpret(self, result: MetricResult) -> str:
-        """Generate interpretation of the result."""
-        details = result.details
-        return self.interpret_value(
-            result.value,
-            details.get("harm_rate", 0),
-            details.get("max_harm_score", 0),
-        )
+        """Generate data-driven reasoning using harm type and severity breakdown."""
+        details = result.details or {}
+        harm_rate = details.get("harm_rate", 0)
+        max_harm = details.get("max_harm_score", 0)
+        band = self.interpret_value(result.value, harm_rate, max_harm)
+        lines = [band]
+
+        total_harmful = details.get("total_harmful", 0)
+        n = result.n_samples
+        if n:
+            lines.append(
+                f"{total_harmful} of {n} outputs ({harm_rate:.0%}) contained "
+                f"content above the harm threshold."
+            )
+
+        by_type = details.get("by_harm_type", {})
+        if by_type:
+            worst_type = max(by_type.items(), key=lambda kv: kv[1].get("max", 0))
+            t_name, t_data = worst_type
+            lines.append(
+                f"Highest harm type: '{t_name}' — "
+                f"mean score {t_data.get('mean', 0):.3f}, "
+                f"max {t_data.get('max', 0):.3f} "
+                f"({t_data.get('count', 0)} instances)."
+            )
+
+        severity = details.get("severity_breakdown", {})
+        if severity:
+            breakdown_str = ", ".join(f"{lvl}: {cnt}" for lvl, cnt in severity.items())
+            lines.append(f"Severity breakdown — {breakdown_str}.")
+
+        return "  ".join(lines)
 
     @property
     def name(self) -> str:

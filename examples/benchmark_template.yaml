@@ -1,0 +1,107 @@
+# ============================================================
+# FAIRBench — Benchmark Spec Template
+# ============================================================
+# Copy this file, fill in your values, and run:
+#
+#   fairbench run my_audit.yaml
+#
+# FAIRBench detects this as a benchmark spec (rather than a
+# plain scenario file) because it contains a 'model_under_test'
+# key.  Everything below is annotated — remove comments before
+# committing to version control.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# 1. Benchmark identity
+# ------------------------------------------------------------
+benchmark:
+  name: "My Model Fairness Audit"          # Human-readable name — appears in the scorecard header
+  description: >                           # Optional. Describe what this audit is probing.
+    Fairness audit targeting gender and occupational bias
+    in text generation outputs.
+
+
+# ------------------------------------------------------------
+# 2. Model under test
+# ------------------------------------------------------------
+# Supported providers: anthropic | openai | openai_compatible | http_webhook
+#
+# API keys are read from environment variables by default.
+# You can reference them inline using ${VAR} syntax if preferred.
+# Never hard-code secret keys in this file.
+
+model_under_test:
+  provider: anthropic                      # Required. One of the four providers above.
+  model: claude-haiku-4-5-20251001         # Required. Exact model string for the provider's API.
+  max_tokens: 1024                         # Optional. Max tokens per generation (default: 1024).
+  temperature: 0.7                         # Optional. Sampling temperature (default: 0.7).
+  top_p: 1.0                               # Optional. Nucleus sampling threshold (default: 1.0).
+  # api_key: ${ANTHROPIC_API_KEY}          # Optional. Falls back to the standard env var if omitted.
+  # base_url: https://...                  # Required for openai_compatible and http_webhook providers.
+
+
+# ------------------------------------------------------------
+# 3. Scenarios
+# ------------------------------------------------------------
+# Mix built-in names and paths to your own YAML scenario files.
+# Relative paths are resolved from the directory this file lives in.
+#
+# Built-in scenario sets:
+#   gender_occupation  — gender bias in professional role descriptions
+#   racial_sentiment   — sentiment differences across racial/ethnic groups
+#   rsi_benchmark      — representation skew probes
+#   sar_benchmark      — stereotype amplification probes
+#   cds_benchmark      — counterfactual divergence probes
+#   hsi_benchmark      — harm severity probes
+#   ode_benchmark      — output diversity probes
+#   dsi_benchmark      — differential service / refusal parity probes
+
+scenarios:
+  - gender_occupation                      # Built-in name — no path prefix needed.
+  - dsi_benchmark                          # Another built-in.
+  # - ./my_custom_scenarios.yaml           # Your own scenario file, relative to this file.
+  # - /absolute/path/to/scenarios.yaml     # Absolute paths also work.
+
+
+# ------------------------------------------------------------
+# 4. Metrics
+# ------------------------------------------------------------
+# Choose which of the six metrics to compute.
+# Omit this section entirely to run all six by default.
+#
+# RSI — Representation Skew Index        (lower is better)
+# SAR — Stereotype Amplification Ratio   (1.0 = neutral; >1.0 = amplification)
+# ODE — Output Diversity Entropy         (higher is better)
+# CDS — Counterfactual Divergence Score  (lower is better)
+# HSI — Harm Severity Index              (lower is better)
+# DSI — Differential Service Index       (lower is better)
+#
+# Tip: always run HSI and DSI together — a low HSI with a high
+# DSI means the model refuses rather than produces harmful content,
+# which is a different but equally important fairness failure.
+
+metrics:
+  - RSI
+  - SAR
+  - ODE
+  - CDS
+  - HSI
+  - DSI
+
+
+# ------------------------------------------------------------
+# 5. Output
+# ------------------------------------------------------------
+# path  — directory where scorecard files are written.
+#         Created automatically if it does not exist.
+# format — json | md | all
+#           json  : machine-readable scorecard (scorecard_<name>_<date>.json)
+#           md    : human-readable model card  (scorecard_<name>_<date>.md)
+#           all   : both files (default)
+#
+# The --output_format CLI flag overrides this value if provided.
+
+output:
+  path: ./reports                          # Relative to the directory you run fairbench from.
+  format: all

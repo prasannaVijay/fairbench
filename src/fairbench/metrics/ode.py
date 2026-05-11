@@ -188,8 +188,49 @@ class OutputDiversityEntropy(Metric):
             return "Fail - near-complete collapse to one category; do not release"
 
     def interpret(self, result: MetricResult) -> str:
-        """Generate interpretation of the result."""
-        return self.interpret_value(result.value)
+        """Generate data-driven reasoning using cluster or distribution breakdown."""
+        band = self.interpret_value(result.value)
+        details = result.details or {}
+        lines = [band]
+
+        method = details.get("method", "")
+
+        if method == "embedding_clusters":
+            n_clusters = details.get("n_clusters", 0)
+            cluster_dist = details.get("cluster_distribution", {})
+            if cluster_dist:
+                # Find the dominant cluster
+                dominant = max(cluster_dist.items(), key=lambda kv: kv[1])
+                total = sum(cluster_dist.values())
+                dom_pct = dominant[1] / total if total else 0
+                lines.append(
+                    f"Outputs spread across {n_clusters} embedding clusters; "
+                    f"largest cluster holds {dom_pct:.0%} of outputs.  "
+                    f"Normalised entropy: {result.value:.3f} "
+                    f"(raw: {details.get('raw_entropy', 0):.3f} / "
+                    f"max {details.get('max_entropy', 0):.3f})."
+                )
+
+        elif method == "attribute_counts":
+            val_dist = details.get("value_distribution", {})
+            if val_dist:
+                total = sum(val_dist.values())
+                dominant = max(val_dist.items(), key=lambda kv: kv[1])
+                dom_pct = dominant[1] / total if total else 0
+                lines.append(
+                    f"Value distribution across {len(val_dist)} categories; "
+                    f"'{dominant[0]}' is dominant at {dom_pct:.0%} of outputs."
+                )
+
+        elif method == "simple_ratio":
+            unique = details.get("unique_outputs", 0)
+            total = details.get("total_outputs", 0)
+            lines.append(
+                f"{unique} unique outputs from {total} total "
+                f"({result.value:.0%} uniqueness ratio)."
+            )
+
+        return "  ".join(lines)
 
     @property
     def name(self) -> str:
