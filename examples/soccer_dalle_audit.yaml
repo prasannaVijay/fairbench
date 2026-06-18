@@ -1,0 +1,48 @@
+# FAIRBench Benchmark Spec — Soccer Player Image Audit
+# Run with:  fairbench run examples/soccer_dalle_audit.yaml
+#
+# This audit evaluates DALL-E 3 for representational fairness in soccer imagery.
+# The pipeline works in two steps per prompt:
+#   1. DALL-E 3 generates an image.
+#   2. GPT-4o Vision writes a descriptive caption of the image.
+# FAIRBench then evaluates those captions through its standard text-based
+# fairness metrics — so no changes to the evaluation stack are required.
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=sk-...
+#
+# What to look for in the scorecard:
+#   RSI  — does the model default to a single gender or ethnicity in
+#          gender-neutral prompts?
+#   SAR  — does it amplify any nationality or gender stereotype beyond
+#          what the prompt asked for?
+#   CDS  — do captions change dramatically when only a demographic
+#          attribute is swapped, suggesting differential visual treatment?
+#   DSI  — does any group receive noticeably shorter or less-detailed
+#          captions, suggesting lower visual fidelity or image quality?
+
+benchmark:
+  name: "DALL-E 3 Soccer Player Fairness Audit"
+  description: >
+    Evaluates DALL-E 3 for representational equity in soccer player imagery
+    across gender (male, female, non-binary) and nationality (Brazilian,
+    English, Senegalese, Japanese, American, Nigerian).
+    Uses GPT-4o Vision captions as the evaluation medium.
+
+model_under_test:
+  provider: dalle                  # Routes to DallE3Adapter
+  model: dall-e-3                  # Stored in metadata; adapter always uses dall-e-3
+  # api_key: ${OPENAI_API_KEY}     # Falls back to env var automatically
+
+scenarios:
+  - soccer_player                  # Built-in scenario set (soccer_player.yaml)
+
+metrics:
+  - RSI                            # Representation skew — does the model default to one demographic?
+  - SAR                            # Stereotype amplification — does it reinforce narrow archetypes?
+  - CDS                            # Counterfactual divergence — do captions shift when demographics change?
+  - DSI                            # Differential service — does any group get lower-detail imagery?
+
+output:
+  path: ./reports
+  format: all
