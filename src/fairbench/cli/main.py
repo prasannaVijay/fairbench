@@ -256,7 +256,7 @@ def _build_adapter(provider: str, model_name: str, api_key: Optional[str], base_
     """Instantiate a model adapter from benchmark spec parameters."""
     from fairbench.adapters.anthropic import AnthropicAdapter
     from fairbench.adapters.dalle import DallE3Adapter
-    from fairbench.adapters.http_webhook import HttpWebhookAdapter
+    from fairbench.adapters.http_webhook import HTTPWebhookAdapter
     from fairbench.adapters.openai import OpenAIAdapter
     from fairbench.adapters.openai_compatible import OpenAICompatibleAdapter
 
@@ -278,7 +278,7 @@ def _build_adapter(provider: str, model_name: str, api_key: Optional[str], base_
     elif provider == "http_webhook":
         if base_url:
             kwargs["url"] = base_url
-        return HttpWebhookAdapter(model=model_name, **kwargs)
+        return HTTPWebhookAdapter(model=model_name, **kwargs)
     else:
         raise ValueError(f"Unknown provider in benchmark spec: '{provider}'")
 
