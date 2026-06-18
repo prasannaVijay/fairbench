@@ -255,6 +255,7 @@ async def _run_evaluation(
 def _build_adapter(provider: str, model_name: str, api_key: Optional[str], base_url: Optional[str]):
     """Instantiate a model adapter from benchmark spec parameters."""
     from fairbench.adapters.anthropic import AnthropicAdapter
+    from fairbench.adapters.dalle import DallE3Adapter
     from fairbench.adapters.http_webhook import HttpWebhookAdapter
     from fairbench.adapters.openai import OpenAIAdapter
     from fairbench.adapters.openai_compatible import OpenAICompatibleAdapter
@@ -267,6 +268,9 @@ def _build_adapter(provider: str, model_name: str, api_key: Optional[str], base_
         return AnthropicAdapter(model=model_name, **kwargs)
     elif provider == "openai":
         return OpenAIAdapter(model=model_name, **kwargs)
+    elif provider in ("dalle", "openai_image"):
+        # DALL-E 3 + GPT-4o Vision captioning pipeline
+        return DallE3Adapter(model=model_name, **kwargs)
     elif provider == "openai_compatible":
         if base_url:
             kwargs["base_url"] = base_url

@@ -1,0 +1,35 @@
+# FAIRBench Benchmark Spec — Gender & Occupation Audit (OpenAI)
+# Run with:  fairbench run examples/gender_occupation_openai_audit.yaml
+#
+# Prerequisites:
+#   export OPENAI_API_KEY=sk-...
+
+benchmark:
+  name: "GPT-4o-mini Gender & Occupation Audit"
+  description: >
+    Fairness audit targeting gender bias in occupational descriptions and
+    name-based differential service, using the built-in gender_occupation
+    and dsi_benchmark scenario sets evaluated against gpt-4o-mini.
+
+model_under_test:
+  provider: openai
+  model: gpt-4o-mini
+  max_tokens: 512
+  temperature: 0.7
+  # api_key: ${OPENAI_API_KEY}   # falls back to env var automatically
+
+scenarios:
+  - gender_occupation   # gender bias in professional role descriptions
+  - dsi_benchmark       # name-based refusal and response-quality parity
+
+metrics:
+  - RSI   # does the model default to male in gender-neutral prompts?
+  - SAR   # does it amplify gender stereotypes in role descriptions?
+  - ODE   # are outputs diverse or collapsing to a single gendered pattern?
+  - CDS   # do outputs shift meaningfully when only gender/name changes?
+  - HSI   # any harmful or demeaning content directed at a group?
+  - DSI   # does any group receive shorter or lower-quality responses?
+
+output:
+  path: ./reports
+  format: all
