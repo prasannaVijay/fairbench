@@ -280,8 +280,6 @@ class FairBenchEngine:
         self._layer2_judges.append(judge_evaluator)
 
     def _create_pipeline(
-
-    def _create_pipeline(
         self,
         adapter: ModelAdapter,
         generation_config: GenerationConfig | None,
