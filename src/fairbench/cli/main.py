@@ -28,50 +28,66 @@ def run(
         ),
     ),
     model: str = typer.Option(
-        "anthropic",
-        "--model", "-m",
-        help="Model adapter to use — ignored when a benchmark spec is provided",
+        "anthropic", "--model", "-m",
+        help="Text: 'anthropic'|'openai'|'claude-*'|'gpt-*'. Image: 'gpt-image-1'|'sd:<hf-id>'",
+    ),
+    modality: str = typer.Option(
+        "text", "--modality",
+        help="'text' (default) or 'image'. Selects the evaluation pipeline.",
     ),
     metrics: Optional[str] = typer.Option(
         None, "--metrics", help="Comma-separated list of metrics (default: all)"
     ),
     output: Optional[Path] = typer.Option(
-        None, "--output", "-o",
-        help="Output directory for scorecard files (defaults to ./reports)",
+        None, "--output", "-o", help="Save results to this JSON file"
     ),
-    output_format: str = typer.Option(
-        "all",
-        "--output_format",
-        help="Scorecard format: json | md | all  (default: all)",
+    html: Optional[Path] = typer.Option(
+        None, "--html", help="Also render an HTML report to this path"
     ),
     concurrency: int = typer.Option(
         10, "--concurrency", "-c", help="Max concurrent API calls"
+    ),
+    # Image-only options (ignored for text)
+    vision_model: str = typer.Option(
+        "claude-sonnet-4-6", "--vision-model",
+        help="[image] Claude model for VisionAnalyzer",
+    ),
+    size: str = typer.Option(
+        "1024x1024", "--size", help="[image] Image size"
+    ),
+    quality: str = typer.Option(
+        "auto", "--quality", help="[image] gpt-image-1 quality: low|medium|high|auto"
+    ),
+    no_clip: bool = typer.Option(
+        False, "--no-clip", help="[image] Skip CLIP evaluation"
+    ),
+    save_images: Optional[Path] = typer.Option(
+        None, "--save-images", help="[image] Directory to save generated images"
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
 ) -> None:
-    """Run a fairness evaluation on a model.
+    """Run a fairness evaluation — text or image generation.
 
-    Pass a benchmark spec YAML (containing a 'model_under_test' key) to drive
-    the full evaluation in a single file.  Pass a scenario name or scenario YAML
-    for the classic two-argument flow where --model selects the adapter.
+    Text examples:
+        fairbench run gender_occupation --model anthropic
+        fairbench run gender_occupation --model openai --output results.json --html report.html
+
+    Image examples:
+        fairbench run soccer_player --modality image --model gpt-image-1
+        fairbench run soccer_player --modality image --model gpt-image-1 --quality high --html report.html
+        fairbench run soccer_player --modality image --model sd:stabilityai/stable-diffusion-xl-base-1.0
     """
-    if output_format not in ("json", "md", "all"):
-        console.print(f"[red]--output_format must be one of: json, md, all[/red]")
-        raise typer.Exit(1)
-
-    asyncio.run(
-        _run_evaluation(
-            scenario=scenario,
-            model=model,
-            metrics=metrics,
-            output=output,
-            output_format=output_format,
-            concurrency=concurrency,
-            verbose=verbose,
+    if modality == "image":
+        asyncio.run(
+            _run_image_evaluation(
+                scenario, model, vision_model, None, size, quality,
+                save_images, output, html, concurrency, no_clip, verbose,
+            )
         )
-    )
+    else:
+        asyncio.run(_run_evaluation(scenario, model, metrics, output, html, concurrency, verbose))
 
 
 async def _run_evaluation(
@@ -79,11 +95,11 @@ async def _run_evaluation(
     model: str,
     metrics: Optional[str],
     output: Optional[Path],
-    output_format: str,
+    html: Optional[Path],
     concurrency: int,
     verbose: bool,
 ) -> None:
-    """Execute the evaluation — handles both benchmark specs and plain scenario runs."""
+    """Execute the text evaluation."""
     from fairbench.adapters.anthropic import AnthropicAdapter
     from fairbench.adapters.openai import OpenAIAdapter
     from fairbench.core.benchmark import is_benchmark_spec, load_benchmark_spec
@@ -233,21 +249,24 @@ async def _run_evaluation(
             )
         console.print(table)
 
-    # -----------------------------------------------------------------------
-    # Write scorecard file(s)
-    # -----------------------------------------------------------------------
-    effective_output_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = benchmark_name.lower().replace(" ", "_").replace("/", "-")[:60]
-    date_str = __import__("datetime").date.today().isoformat()
-    base_stem = f"{safe_name}_{date_str}"
+    # Save JSON output
+    if output:
+        output_data = {
+            "run_id": str(result.id),
+            "model": result.model_info.model_dump(),
+            "scenarios": result.scenario_sets,
+            "metrics": [m.model_dump(mode="json") for m in result.metric_results],
+        }
+        output.write_text(json.dumps(output_data, indent=2))
+        console.print(f"\nResults saved to: {output}")
 
-    _write_scorecards(
-        result=result,
-        output_dir=effective_output_dir,
-        base_stem=base_stem,
-        fmt=effective_format,
-        benchmark_name=benchmark_name,
-    )
+    # Render HTML report
+    if html:
+        from fairbench.reporting.html_report import generate_html_report
+        from fairbench.reporting.scorecard import generate_scorecard
+        scorecard_data = generate_scorecard(result)
+        html.write_text(generate_html_report(scorecard_data))
+        console.print(f"HTML report saved to: {html}")
 
     await engine.close()
 
@@ -463,12 +482,15 @@ def scorecard(
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Output file path (JSON). Prints to stdout if omitted."
     ),
+    html: Optional[Path] = typer.Option(
+        None, "--html", help="Also render an HTML report to this path."
+    ),
 ) -> None:
-    """Generate a JSON scorecard for a completed evaluation run."""
-    asyncio.run(_generate_scorecard(run_id, output))
+    """Generate a scorecard for a completed evaluation run (JSON + optional HTML)."""
+    asyncio.run(_generate_scorecard(run_id, output, html))
 
 
-async def _generate_scorecard(run_id: str, output: Optional[Path]) -> None:
+async def _generate_scorecard(run_id: str, output: Optional[Path], html: Optional[Path]) -> None:
     """Load run and produce scorecard."""
     import json
 
@@ -491,6 +513,11 @@ async def _generate_scorecard(run_id: str, output: Optional[Path]) -> None:
         console.print(f"[green]Scorecard saved to: {output}[/green]")
     else:
         console.print(json_str)
+
+    if html:
+        from fairbench.reporting.html_report import generate_html_report
+        html.write_text(generate_html_report(card))
+        console.print(f"[green]HTML report saved to: {html}[/green]")
 
 
 @app.command()
@@ -539,6 +566,213 @@ fairbench:
 
     path.write_text(config_content)
     console.print(f"[green]Configuration file created: {path}[/green]")
+
+
+@app.command(name="image-run")
+def image_run(
+    scenario: str = typer.Argument(
+        ..., help="Scenario set name or path to a scenario YAML file"
+    ),
+    model: str = typer.Option(
+        "gpt-image-1", "--model", "-m",
+        help="Image model: 'gpt-image-1' | 'sd:<hf-model-id>' | 'sd-local:<hf-model-id>'"
+    ),
+    vision_model: str = typer.Option(
+        "claude-sonnet-4-6", "--vision-model",
+        help="Claude model for VisionAnalyzer analysis"
+    ),
+    size: str = typer.Option(
+        "1024x1024", "--size", help="Image size"
+    ),
+    quality: str = typer.Option(
+        "auto", "--quality", help="gpt-image-1 quality: low|medium|high|auto"
+    ),
+    save_images: Optional[Path] = typer.Option(
+        None, "--save-images", help="Directory to save generated images"
+    ),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Save scorecard JSON to this path"
+    ),
+    html: Optional[Path] = typer.Option(
+        None, "--html", help="Also render an HTML report to this path"
+    ),
+    concurrency: int = typer.Option(
+        3, "--concurrency", "-c", help="Max concurrent image generation calls"
+    ),
+    no_clip: bool = typer.Option(
+        False, "--no-clip", help="Skip CLIP evaluation (faster, no openai-clip dependency)"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show tracebacks on error"),
+) -> None:
+    """Run an image generation fairness benchmark.
+
+    Examples:
+        fairbench image-run soccer_player --model gpt-image-1
+        fairbench image-run soccer_player --model gpt-image-1 --html report.html
+        fairbench image-run soccer_player --model sd:stabilityai/stable-diffusion-xl-base-1.0
+    """
+    asyncio.run(
+        _run_image_evaluation(
+            scenario, model, vision_model, None, size, quality,
+            save_images, output, html, concurrency, no_clip, verbose,
+        )
+    )
+
+
+async def _run_image_evaluation(
+    scenario: str,
+    model_name: str,
+    vision_model: str,
+    clip_model: str | None,
+    size: str,
+    quality: str,
+    save_images: Optional[Path],
+    output: Optional[Path],
+    html: Optional[Path],
+    concurrency: int,
+    no_clip: bool,
+    verbose: bool,
+) -> None:
+    """Execute the image evaluation."""
+    import json
+    from pathlib import Path as P
+
+    from fairbench.adapters.image.dalle import DALLEAdapter
+    from fairbench.adapters.image.stable_diffusion import StableDiffusionAdapter
+    from fairbench.core.image_engine import ImageBenchEngine
+    from fairbench.core.image_types import ImageGenerationConfig
+    from fairbench.evaluation.image.clip_evaluator import CLIPEvaluator
+    from fairbench.evaluation.image.vision_analyzer import VisionAnalyzer
+
+    console.print("[bold blue]FAIRBench Image Evaluation[/bold blue]")
+    console.print(f"  Scenario : {scenario}")
+    console.print(f"  Model    : {model_name}")
+    console.print(f"  Vision   : {vision_model}")
+    console.print(f"  CLIP     : {'disabled' if no_clip else clip_model}")
+    console.print()
+
+    # ── Build image adapter ──────────────────────────────────────────────────
+    try:
+        save_dir = str(save_images) if save_images else None
+        if model_name in ("dalle3", "dall-e-3", "gpt-image-1"):
+            adapter = DALLEAdapter(model="gpt-image-1", save_dir=save_dir)
+        elif model_name in ("dalle2", "dall-e-2"):
+            adapter = DALLEAdapter(model="dall-e-2", save_dir=save_dir)
+        elif model_name.startswith("sd-local:"):
+            hf_id = model_name.split("sd-local:", 1)[1]
+            adapter = StableDiffusionAdapter(model=hf_id, backend="local", save_dir=save_dir)
+        elif model_name.startswith("sd:"):
+            hf_id = model_name.split("sd:", 1)[1]
+            adapter = StableDiffusionAdapter(model=hf_id, backend="hf_api", save_dir=save_dir)
+        else:
+            console.print(f"[red]Unknown model: {model_name!r}[/red]")
+            console.print("Valid options: dalle3, dalle2, sd:<hf-model-id>, sd-local:<hf-model-id>")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error building adapter: {e}[/red]")
+        if verbose:
+            console.print_exception()
+        raise typer.Exit(1)
+
+    # ── Build evaluators ─────────────────────────────────────────────────────
+    try:
+        vision_analyzer = VisionAnalyzer(model=vision_model)
+        clip_evaluator = None if no_clip else CLIPEvaluator(model_name=clip_model)
+    except Exception as e:
+        console.print(f"[red]Error building evaluators: {e}[/red]")
+        if verbose:
+            console.print_exception()
+        raise typer.Exit(1)
+
+    # ── Load scenarios ───────────────────────────────────────────────────────
+    engine = ImageBenchEngine()
+    scenario_path = P(scenario)
+    if scenario_path.exists():
+        engine.scenario_registry.load_file(str(scenario_path))
+        scenario_name = scenario_path.stem
+    else:
+        # Try built-in image scenarios first
+        builtin_image = (
+            P(__file__).parent.parent / "scenarios" / "image" / f"{scenario}.yaml"
+        )
+        if builtin_image.exists():
+            engine.scenario_registry.load_file(str(builtin_image))
+            scenario_name = scenario
+        else:
+            scenario_name = scenario  # Hope it's already registered
+
+    metric_list = [m.strip() for m in metrics.split(",")] if metrics else None
+    gen_config = ImageGenerationConfig(size=size, quality=quality)
+
+    # ── Run ──────────────────────────────────────────────────────────────────
+    console.print("[yellow]Running image generation and analysis…[/yellow]")
+    try:
+        with console.status("[bold green]Generating images and evaluating fairness…"):
+            run = await engine.evaluate(
+                model=adapter,
+                scenarios=[scenario_name],
+                vision_analyzer=vision_analyzer,
+                clip_evaluator=clip_evaluator,
+                metrics=metric_list,
+                generation_config=gen_config,
+                concurrency=concurrency,
+            )
+    except Exception as e:
+        console.print(f"[red]Evaluation failed: {e}[/red]")
+        if verbose:
+            console.print_exception()
+        raise typer.Exit(1)
+
+    # ── Results ──────────────────────────────────────────────────────────────
+    console.print()
+    console.print("[bold green]Image Evaluation Complete![/bold green]")
+    console.print(f"  Run ID        : {run.id}")
+    console.print(f"  Total images  : {run.total_images()}")
+    console.print(f"  Refused       : {run.refused_count()}")
+    console.print()
+
+    if run.metric_results:
+        table = Table(title="Image Fairness Metrics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="magenta")
+        table.add_column("Samples", style="green")
+        table.add_column("Interpretation", style="yellow")
+
+        for mr in run.metric_results:
+            table.add_row(
+                mr.metric_name,
+                f"{mr.value:.4f}" if mr.value == mr.value else "N/A",
+                str(mr.n_samples),
+                mr.interpretation or "",
+            )
+        console.print(table)
+
+    # Gender breakdown across all images
+    gender_counts: dict[str, int] = {}
+    for ei in run.evaluated_images:
+        if ei.vision_analysis:
+            g = ei.vision_analysis.perceived_gender
+            gender_counts[g] = gender_counts.get(g, 0) + 1
+
+    if gender_counts:
+        total = sum(gender_counts.values())
+        console.print()
+        console.print("[bold]Gender representation (across all generated images):[/bold]")
+        for g, count in sorted(gender_counts.items(), key=lambda x: -x[1]):
+            pct = 100 * count / total
+            console.print(f"  {g:15s}: {count:3d} ({pct:.1f}%)")
+
+    # ── Scorecard ────────────────────────────────────────────────────────────
+    scorecard = engine.generate_scorecard(run)
+
+    if output:
+        output.write_text(json.dumps(scorecard, indent=2))
+        console.print(f"\n[green]Scorecard saved to: {output}[/green]")
+
+    if html:
+        from fairbench.reporting.html_report import generate_html_report
+        html.write_text(generate_html_report(scorecard))
+        console.print(f"[green]HTML report saved to: {html}[/green]")
 
 
 if __name__ == "__main__":
