@@ -200,8 +200,33 @@ class RepresentationSkewIndex(Metric):
             return "Fail - severe skew; systematic failure; do not release"
 
     def interpret(self, result: MetricResult) -> str:
-        """Generate interpretation of the result."""
-        return self.interpret_value(result.value)
+        """Generate data-driven reasoning using per-category breakdown."""
+        band = self.interpret_value(result.value)
+        details = result.details or {}
+        lines = [band]
+
+        by_category = details.get("by_category", {})
+        if by_category:
+            worst = max(
+                by_category.items(),
+                key=lambda kv: abs(kv[1].get("difference", 0)),
+            )
+            cat_name, cat_data = worst
+            obs = cat_data.get("observed", 0)
+            base = cat_data.get("baseline", 0)
+            diff = cat_data.get("difference", 0)
+            direction = "over-represented" if diff > 0 else "under-represented"
+            lines.append(
+                f"Largest gap: '{cat_name}' is {direction} — "
+                f"observed {obs:.0%} vs baseline {base:.0%} (gap: {diff:+.0%})."
+            )
+
+        method = details.get("divergence_method", "jsd").upper()
+        lines.append(
+            f"Divergence method: {method}.  "
+            f"Score {result.value:.3f} across {result.n_samples} outputs."
+        )
+        return "  ".join(lines)
 
     @property
     def name(self) -> str:

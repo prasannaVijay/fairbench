@@ -21,7 +21,11 @@ console = Console()
 @app.command()
 def run(
     scenario: str = typer.Argument(
-        ..., help="Scenario set name or path to scenario file"
+        ...,
+        help=(
+            "Scenario set name (built-in), path to a scenario YAML, "
+            "or path to a benchmark spec YAML (detected by 'model_under_test' key)"
+        ),
     ),
     model: str = typer.Option(
         "anthropic", "--model", "-m",
@@ -98,60 +102,121 @@ async def _run_evaluation(
     """Execute the text evaluation."""
     from fairbench.adapters.anthropic import AnthropicAdapter
     from fairbench.adapters.openai import OpenAIAdapter
+    from fairbench.core.benchmark import is_benchmark_spec, load_benchmark_spec
     from fairbench.core.engine import FairBenchEngine
 
-    console.print(f"[bold blue]FAIRBench Evaluation[/bold blue]")
-    console.print(f"  Scenario: {scenario}")
-    console.print(f"  Model: {model}")
-    console.print()
+    # -----------------------------------------------------------------------
+    # Determine whether this is a benchmark spec or a plain scenario run
+    # -----------------------------------------------------------------------
+    spec = None
+    benchmark_name = "FAIRBench Audit"
 
-    # Initialize engine
+    if Path(scenario).exists() and is_benchmark_spec(scenario):
+        spec = load_benchmark_spec(scenario)
+        benchmark_name = spec.benchmark.name
+        console.print(f"[bold blue]FAIRBench Evaluation[/bold blue]  (benchmark spec)")
+        console.print(f"  Benchmark : {spec.benchmark.name}")
+        console.print(f"  Model     : {spec.model_under_test.model} ({spec.model_under_test.provider})")
+        console.print(f"  Scenarios : {', '.join(spec.scenarios)}")
+        console.print()
+    else:
+        console.print(f"[bold blue]FAIRBench Evaluation[/bold blue]")
+        console.print(f"  Scenario  : {scenario}")
+        console.print(f"  Model     : {model}")
+        console.print()
+
+    # -----------------------------------------------------------------------
+    # Resolve effective parameters from spec or CLI args
+    # -----------------------------------------------------------------------
     engine = FairBenchEngine()
 
-    # Load scenarios
-    if Path(scenario).exists():
-        # Load from file
-        engine.scenario_registry.load_file(scenario)
-        scenario_name = Path(scenario).stem
+    if spec is not None:
+        # --- Model adapter from spec ---
+        mut = spec.model_under_test
+        try:
+            adapter = _build_adapter(mut.provider, mut.model, mut.api_key, mut.base_url)
+        except Exception as e:
+            console.print(f"[red]Error setting up model adapter from spec: {e}[/red]")
+            raise typer.Exit(1)
+
+        effective_model_key = f"{mut.provider}/{mut.model}"
+        engine.register_adapter(effective_model_key, adapter)
+
+        # --- Scenarios from spec ---
+        resolved_scenarios = spec.resolve_scenario_paths()
+        scenario_names: list[str] = []
+        for entry in resolved_scenarios:
+            if Path(entry).exists():
+                loaded = engine.scenario_registry.load_file(entry)
+                scenario_names.append(loaded.name)
+            else:
+                scenario_names.append(entry)
+
+        # --- Metrics from spec (CLI --metrics overrides) ---
+        metric_list = (
+            [m.strip() for m in metrics.split(",")]
+            if metrics
+            else spec.metrics
+        )
+
+        # --- Output directory from spec (CLI --output overrides) ---
+        effective_output_dir = output or Path(spec.output.path)
+        # Output format: CLI flag overrides spec default
+        effective_format = output_format if output_format != "all" else spec.output.format
+
+        # Store benchmark name in run config for scorecard header
+        engine.config = engine.config.model_copy(update={})  # keep frozen; pass via snapshot below
+        extra_snapshot = {"benchmark_name": spec.benchmark.name}
+
     else:
-        # Use built-in or already loaded
-        scenario_name = scenario
+        # --- Classic flow: model from --model flag, scenario from argument ---
+        effective_model_key = model
+        try:
+            if model == "anthropic" or model.startswith("claude"):
+                adapter = AnthropicAdapter(
+                    model=model if model.startswith("claude") else None
+                )
+            elif model == "openai" or model.startswith("gpt"):
+                adapter = OpenAIAdapter(
+                    model=model if model.startswith("gpt") else None
+                )
+            else:
+                adapter = engine.adapter_registry.get(model)
+            engine.register_adapter(model, adapter)
+        except Exception as e:
+            console.print(f"[red]Error setting up model adapter: {e}[/red]")
+            raise typer.Exit(1)
 
-    # Set up model adapter
-    try:
-        if model == "anthropic" or model.startswith("claude"):
-            adapter = AnthropicAdapter(
-                model=model if model.startswith("claude") else None
-            )
-        elif model == "openai" or model.startswith("gpt"):
-            adapter = OpenAIAdapter(
-                model=model if model.startswith("gpt") else None
-            )
+        if Path(scenario).exists():
+            loaded = engine.scenario_registry.load_file(scenario)
+            scenario_names = [loaded.name]
         else:
-            # Try to get from registry
-            adapter = engine.adapter_registry.get(model)
+            scenario_names = [scenario]
 
-        engine.register_adapter(model, adapter)
-    except Exception as e:
-        console.print(f"[red]Error setting up model adapter: {e}[/red]")
-        raise typer.Exit(1)
+        metric_list = [m.strip() for m in metrics.split(",")] if metrics else None
+        effective_output_dir = output or Path("./reports")
+        effective_format = output_format
+        extra_snapshot = {}
 
-    # Parse metrics
-    metric_list = None
-    if metrics:
-        metric_list = [m.strip() for m in metrics.split(",")]
-
+    # -----------------------------------------------------------------------
     # Run evaluation
+    # -----------------------------------------------------------------------
     console.print("[yellow]Running evaluation...[/yellow]")
-
     try:
         with console.status("[bold green]Generating and evaluating outputs..."):
             result = await engine.evaluate(
-                model=model,
-                scenarios=[scenario_name],
+                model=effective_model_key,
+                scenarios=scenario_names,
                 metrics=metric_list,
                 concurrency=concurrency,
                 save_run=True,
+            )
+        # Attach extra snapshot info (benchmark name etc.) post-hoc
+        if extra_snapshot:
+            updated_snapshot = {**result.config_snapshot, **extra_snapshot}
+            from fairbench.core.types import EvaluationRun
+            result = EvaluationRun(
+                **{**result.model_dump(), "config_snapshot": updated_snapshot}
             )
     except Exception as e:
         console.print(f"[red]Evaluation failed: {e}[/red]")
@@ -159,30 +224,29 @@ async def _run_evaluation(
             console.print_exception()
         raise typer.Exit(1)
 
-    # Display results
+    # -----------------------------------------------------------------------
+    # Display summary in terminal
+    # -----------------------------------------------------------------------
     console.print()
     console.print("[bold green]Evaluation Complete![/bold green]")
-    console.print(f"  Run ID: {result.id}")
-    console.print(f"  Status: {result.status.value}")
-    console.print(f"  Outputs evaluated: {len(result.outputs)}")
+    console.print(f"  Run ID  : {result.id}")
+    console.print(f"  Status  : {result.status.value}")
+    console.print(f"  Outputs : {len(result.outputs)}")
     console.print()
 
-    # Metrics table
     if result.metric_results:
         table = Table(title="Fairness Metrics")
         table.add_column("Metric", style="cyan")
-        table.add_column("Value", style="magenta")
+        table.add_column("Score", style="magenta")
         table.add_column("Samples", style="green")
-        table.add_column("Interpretation", style="yellow")
-
-        for metric in result.metric_results:
+        table.add_column("Band / Interpretation", style="yellow")
+        for mr in result.metric_results:
             table.add_row(
-                metric.metric_name,
-                f"{metric.value:.4f}",
-                str(metric.n_samples),
-                metric.interpretation or "",
+                mr.metric_name,
+                f"{mr.value:.4f}",
+                str(mr.n_samples),
+                mr.interpretation or "",
             )
-
         console.print(table)
 
     # Save JSON output
@@ -205,6 +269,68 @@ async def _run_evaluation(
         console.print(f"HTML report saved to: {html}")
 
     await engine.close()
+
+
+def _build_adapter(provider: str, model_name: str, api_key: Optional[str], base_url: Optional[str]):
+    """Instantiate a model adapter from benchmark spec parameters."""
+    from fairbench.adapters.anthropic import AnthropicAdapter
+    from fairbench.adapters.dalle import DallE3Adapter
+    from fairbench.adapters.http_webhook import HttpWebhookAdapter
+    from fairbench.adapters.openai import OpenAIAdapter
+    from fairbench.adapters.openai_compatible import OpenAICompatibleAdapter
+
+    kwargs = {}
+    if api_key:
+        kwargs["api_key"] = api_key
+
+    if provider == "anthropic":
+        return AnthropicAdapter(model=model_name, **kwargs)
+    elif provider == "openai":
+        return OpenAIAdapter(model=model_name, **kwargs)
+    elif provider in ("dalle", "openai_image"):
+        # DALL-E 3 + GPT-4o Vision captioning pipeline
+        return DallE3Adapter(model=model_name, **kwargs)
+    elif provider == "openai_compatible":
+        if base_url:
+            kwargs["base_url"] = base_url
+        return OpenAICompatibleAdapter(model=model_name, **kwargs)
+    elif provider == "http_webhook":
+        if base_url:
+            kwargs["url"] = base_url
+        return HttpWebhookAdapter(model=model_name, **kwargs)
+    else:
+        raise ValueError(f"Unknown provider in benchmark spec: '{provider}'")
+
+
+def _write_scorecards(
+    result,
+    output_dir: Path,
+    base_stem: str,
+    fmt: str,
+    benchmark_name: str,
+) -> None:
+    """Write JSON and/or Markdown scorecards to output_dir."""
+    from fairbench.reporting.markdown import generate_markdown_scorecard
+    from fairbench.reporting.scorecard import generate_scorecard
+
+    wrote: list[str] = []
+
+    if fmt in ("json", "all"):
+        sc = generate_scorecard(result)
+        path = output_dir / f"{base_stem}.json"
+        path.write_text(json.dumps(sc, indent=2))
+        wrote.append(str(path))
+
+    if fmt in ("md", "all"):
+        md = generate_markdown_scorecard(result, benchmark_name=benchmark_name)
+        path = output_dir / f"{base_stem}.md"
+        path.write_text(md)
+        wrote.append(str(path))
+
+    if wrote:
+        console.print()
+        for p in wrote:
+            console.print(f"[green]Scorecard written:[/green] {p}")
 
 
 @app.command()

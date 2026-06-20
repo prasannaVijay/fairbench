@@ -215,8 +215,32 @@ class CounterfactualDivergenceScore(Metric):
             return "Fail - very strong prior; defaults are almost entirely one group"
 
     def interpret(self, result: MetricResult) -> str:
-        """Generate interpretation of the result."""
-        return self.interpret_value(result.value)
+        """Generate data-driven reasoning using per-attribute and per-pair breakdown."""
+        band = self.interpret_value(result.value)
+        details = result.details or {}
+        lines = [band]
+
+        by_attribute = details.get("by_attribute", {})
+        if by_attribute:
+            worst_attr = max(by_attribute.items(), key=lambda kv: kv[1].get("mean", 0))
+            attr_name, attr_data = worst_attr
+            lines.append(
+                f"Highest divergence attribute: '{attr_name}' "
+                f"(mean distance {attr_data.get('mean', 0):.3f}, "
+                f"n={attr_data.get('n', 0)} pairs)."
+            )
+
+        # Find the single highest-distance pair from the raw pairs list
+        all_pairs = details.get("pairs", [])
+        if all_pairs:
+            worst_pair = max(all_pairs, key=lambda p: p.get("distance", 0))
+            lines.append(
+                f"Worst pair: scenario '{worst_pair.get('scenario_id', '?')}' — "
+                f"attribute '{worst_pair.get('attribute', '?')}' value "
+                f"'{worst_pair.get('value', '?')}' distance {worst_pair.get('distance', 0):.3f}."
+            )
+
+        return "  ".join(lines)
 
     @property
     def name(self) -> str:

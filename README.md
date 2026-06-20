@@ -1,6 +1,26 @@
 # FAIRBench
 
+
 A fairness benchmarking framework for generative AI. FAIRBench evaluates both **text generation** (LLMs) and **image generation** models for representational bias, harmful stereotypes, and service-quality disparities — using counterfactual testing and six calibrated fairness metrics.
+
+---
+
+```
+Scenario Generator → Counterfactual Testing → Model Interface
+                                                     ↓
+Scorecard Generator ← Metrics Engine ← Output Evaluation
+```
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Configuring a Benchmark Spec](docs/benchmark-spec.md) | Full field reference for the input YAML — model, scenarios, metrics, output settings |
+| [Reading Your Scorecard](docs/reading-your-scorecard.md) | How to interpret the model card output — bands, reasoning sections, and what to do next |
+| [Benchmark template](examples/benchmark_template.yaml) | Annotated YAML template to copy and fill in |
+| [Example audit](examples/gender_audit.yaml) | A working example targeting gender and service parity |
 
 ---
 
