@@ -195,8 +195,10 @@ class CLIPEvaluator:
                 return PILImage.open(image.image_path).convert("RGB")
             elif image.image_url:
                 # Synchronous HTTP fetch for PIL loading (called from executor)
+                import ssl
                 import urllib.request
-                with urllib.request.urlopen(image.image_url, timeout=30) as resp:
+                ctx = ssl.create_default_context()
+                with urllib.request.urlopen(image.image_url, timeout=30, context=ctx) as resp:
                     return PILImage.open(io.BytesIO(resp.read())).convert("RGB")
         except Exception:
             pass
