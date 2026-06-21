@@ -159,13 +159,9 @@ async def _run_evaluation(
             else spec.metrics
         )
 
-        # --- Output directory from spec (CLI --output overrides) ---
-        effective_output_dir = output or Path(spec.output.path)
-        # Output format: CLI flag overrides spec default
-        effective_format = output_format if output_format != "all" else spec.output.format
-
-        # Store benchmark name in run config for scorecard header
-        engine.config = engine.config.model_copy(update={})  # keep frozen; pass via snapshot below
+        # --- Output settings from spec (CLI --output / --html override) ---
+        spec_output_dir = Path(spec.output.path)
+        spec_output_format = spec.output.format  # "json" | "md" | "all"
         extra_snapshot = {"benchmark_name": spec.benchmark.name}
 
     else:
@@ -194,8 +190,8 @@ async def _run_evaluation(
             scenario_names = [scenario]
 
         metric_list = [m.strip() for m in metrics.split(",")] if metrics else None
-        effective_output_dir = output or Path("./reports")
-        effective_format = output_format
+        spec_output_dir = None
+        spec_output_format = "json"  # unused for non-spec runs; output written via --output / --html
         extra_snapshot = {}
 
     # -----------------------------------------------------------------------
@@ -249,7 +245,13 @@ async def _run_evaluation(
             )
         console.print(table)
 
-    # Save JSON output
+    # If a benchmark spec was used, write scorecards to the spec's output directory
+    if spec is not None and spec_output_dir is not None:
+        spec_output_dir.mkdir(parents=True, exist_ok=True)
+        stem = result.id
+        _write_scorecards(result, spec_output_dir, str(stem), spec_output_format, benchmark_name)
+
+    # CLI --output flag: write JSON to the specified path
     if output:
         output_data = {
             "run_id": str(result.id),
@@ -260,7 +262,7 @@ async def _run_evaluation(
         output.write_text(json.dumps(output_data, indent=2))
         console.print(f"\nResults saved to: {output}")
 
-    # Render HTML report
+    # CLI --html flag: render HTML report
     if html:
         from fairbench.reporting.html_report import generate_html_report
         from fairbench.reporting.scorecard import generate_scorecard

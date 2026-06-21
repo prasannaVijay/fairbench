@@ -11,6 +11,7 @@ No external CDN dependencies — the report works offline.
 
 from __future__ import annotations
 
+from html import escape as _esc
 from typing import Any
 
 # ── Metric metadata ──────────────────────────────────────────────────────────
@@ -190,18 +191,18 @@ def _metric_card_html(name: str, value: float, interpretation: str, n_samples: i
     return f"""
 <div class="metric-card band-{band}">
   <div class="card-header">
-    <span class="metric-abbr">{name}</span>
+    <span class="metric-abbr">{_esc(name)}</span>
     <div class="info-wrap">
       <button class="info-btn" aria-label="Metric info">?</button>
       {tooltip}
     </div>
   </div>
   <div class="card-body">
-    <div class="metric-value">{value_str}</div>
+    <div class="metric-value">{_esc(value_str)}</div>
     <div class="band-badge band-{band}">{band.upper()}</div>
-    <div class="metric-fullname">{full_name}</div>
-    <div class="metric-interp">{interpretation}</div>
-    <div class="metric-samples">{n_samples} samples</div>
+    <div class="metric-fullname">{_esc(full_name)}</div>
+    <div class="metric-interp">{_esc(interpretation)}</div>
+    <div class="metric-samples">{_esc(str(n_samples))} samples</div>
   </div>
 </div>"""
 
@@ -214,10 +215,11 @@ def _scenario_table_html(scenario_id: str, data: dict[str, Any]) -> str:
     for mname, mdata in metrics_data.items():
         v = mdata.get("value", float("nan"))
         band = _classify_band(mname, v) if v == v else "watch"
+        v_str = f"{v:.4f}" if v == v else "N/A"
         rows += f"""<tr>
-          <td><span class="tag band-{band}">{mname}</span></td>
-          <td>{v:.4f if v == v else "N/A"}</td>
-          <td>{mdata.get("interpretation", "")}</td>
+          <td><span class="tag band-{band}">{_esc(mname)}</span></td>
+          <td>{_esc(v_str)}</td>
+          <td>{_esc(mdata.get("interpretation", ""))}</td>
         </tr>"""
 
     # Image analysis fields if present
@@ -225,25 +227,29 @@ def _scenario_table_html(scenario_id: str, data: dict[str, Any]) -> str:
     for key in ("gender_distribution", "skin_tone_distribution", "setting_distribution"):
         dist = data.get(key)
         if dist:
-            label = key.replace("_distribution", "").replace("_", " ").title()
-            items = ", ".join(f"{k}: {v}" for k, v in sorted(dist.items(), key=lambda x: -x[1]))
+            label = _esc(key.replace("_distribution", "").replace("_", " ").title())
+            items = _esc(", ".join(f"{k}: {v}" for k, v in sorted(dist.items(), key=lambda x: -x[1])))
             image_fields += f"<p><strong>{label}:</strong> {items}</p>"
     if data.get("avg_quality") is not None:
         image_fields += f"<p><strong>Avg image quality:</strong> {data['avg_quality']:.1f}/10</p>"
     if data.get("stereotypes"):
-        stereotype_items = "".join(f"<li>{s}</li>" for s in data["stereotypes"][:5])
+        stereotype_items = "".join(f"<li>{_esc(str(s))}</li>" for s in data["stereotypes"][:5])
         image_fields += f"<p><strong>Stereotypes detected:</strong></p><ul>{stereotype_items}</ul>"
     if data.get("n_refused"):
-        image_fields += f"<p class='warn'>⚠ {data['n_refused']} images refused (NSFW/policy)</p>"
+        image_fields += f"<p class='warn'>&#9888; {int(data['n_refused'])} images refused (NSFW/policy)</p>"
 
     n_imgs = data.get("n_images") or data.get("n_outputs", "?")
     n_base = data.get("n_base", "?")
     n_cf = data.get("n_counterfactual") or data.get("n_outputs", "?")
-    summary = f"{n_imgs} images · {n_base} base · {n_cf} counterfactual" if "n_images" in data else f"{n_imgs} outputs · {n_base} base · {n_cf} counterfactual"
+    summary = _esc(
+        f"{n_imgs} images · {n_base} base · {n_cf} counterfactual"
+        if "n_images" in data
+        else f"{n_imgs} outputs · {n_base} base · {n_cf} counterfactual"
+    )
 
     return f"""
 <details class="scenario-block">
-  <summary><strong>{scenario_id}</strong> <span class="scenario-meta">{summary}</span></summary>
+  <summary><strong>{_esc(scenario_id)}</strong> <span class="scenario-meta">{summary}</span></summary>
   <div class="scenario-body">
     {image_fields}
     {"<table class='metric-table'><tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>" + rows + "</table>" if rows else ""}
@@ -400,15 +406,14 @@ def generate_html_report(
     summary = scorecard.get("summary", {})
     modality = run_info.get("modality", "text")
 
-    run_id = run_info.get("id", "—")
-    status = run_info.get("status", "—")
-    created = run_info.get("created_at", "—")[:19].replace("T", " ") if run_info.get("created_at") else "—"
-    completed = run_info.get("completed_at", "—")
+    run_id = _esc(run_info.get("id", "—"))
+    status = _esc(run_info.get("status", "—"))
+    created = _esc(run_info.get("created_at", "—")[:19].replace("T", " ") if run_info.get("created_at") else "—")
     elapsed = run_info.get("elapsed_seconds")
-    elapsed_str = f"{elapsed:.0f}s" if elapsed else "—"
-    model_name = model_info.get("name", "—")
-    provider = model_info.get("provider", "—")
-    scenarios_list = ", ".join(run_info.get("scenario_sets", []))
+    elapsed_str = _esc(f"{elapsed:.0f}s" if elapsed else "—")
+    model_name = _esc(model_info.get("name", "—"))
+    provider = _esc(model_info.get("provider", "—"))
+    scenarios_list = _esc(", ".join(run_info.get("scenario_sets", [])))
 
     # ── Stats pills ──────────────────────────────────────────────────────────
     if modality == "image":
@@ -462,7 +467,7 @@ def generate_html_report(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
+<title>{_esc(title)}</title>
 <style>{_CSS}</style>
 </head>
 <body>

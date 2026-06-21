@@ -45,6 +45,7 @@ class HTTPWebhookAdapter(ModelAdapter):
         response_path: str = "$.text",
         timeout: int = 60,
         model_name: str = "http-webhook",
+        include_raw_response: bool = False,
     ) -> None:
         """Initialize the HTTP webhook adapter.
 
@@ -56,6 +57,10 @@ class HTTPWebhookAdapter(ModelAdapter):
             response_path: JSONPath to extract response text.
             timeout: Request timeout in seconds.
             model_name: Name to use for this model in reports.
+            include_raw_response: If True, store the full API response in
+                metadata["raw_response"]. Disabled by default — raw responses
+                may contain sensitive server data that would be persisted to
+                the SQLite run store and included in JSON exports.
         """
         self.endpoint = endpoint
         self.method = method.upper()
@@ -64,6 +69,7 @@ class HTTPWebhookAdapter(ModelAdapter):
         self.response_path = response_path
         self.timeout = timeout
         self.model_name = model_name
+        self.include_raw_response = include_raw_response
         self._client: httpx.AsyncClient | None = None
 
     def _expand_env_vars(self, data: dict[str, str]) -> dict[str, str]:
@@ -207,16 +213,17 @@ class HTTPWebhookAdapter(ModelAdapter):
         # Extract text from response
         text = self._extract_response(data, self.response_path)
 
+        metadata: dict = {"endpoint": self.endpoint}
+        if self.include_raw_response:
+            metadata["raw_response"] = data
+
         return GeneratedOutput(
             text=text,
             prompt=prompt,
             model_info=self.get_model_info(),
             generation_config=config,
             latency_ms=latency_ms,
-            metadata={
-                "endpoint": self.endpoint,
-                "raw_response": data,
-            },
+            metadata=metadata,
         )
 
     def get_model_info(self) -> ModelInfo:

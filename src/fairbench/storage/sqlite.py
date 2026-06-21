@@ -251,8 +251,13 @@ class SQLiteBackend(StorageBackend):
         run_artifacts_dir = self.artifacts_dir / run_id
         run_artifacts_dir.mkdir(exist_ok=True)
 
+        # Sanitize name to prevent path traversal
+        safe_name = Path(name).name  # strips any directory components
+        if not safe_name or safe_name in (".", ".."):
+            raise StorageError(f"Invalid artifact name: {name!r}")
+
         # Save file
-        artifact_path = run_artifacts_dir / name
+        artifact_path = run_artifacts_dir / safe_name
         artifact_path.write_bytes(data)
 
         try:
