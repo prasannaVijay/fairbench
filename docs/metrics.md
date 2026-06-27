@@ -1,21 +1,21 @@
-# FAIRBench Metrics Reference
+# FAIRBench Metrics
 
-FAIRBench computes six complementary fairness metrics. No single metric is sufficient on its own — together they cover representational equity, implicit priors, harmful content, stereotype amplification, and service-level disparities.
+FAIRBench computes six complementary fairness metrics. The metrics are designed, keeping in mind that no single metric is sufficient on its own. Together they cover representational equity, implicit priors, harmful content, stereotype amplification, and service-level disparities.
 
-For the full implementation specification with formulas, benchmark prompt sets, and calibration guidance, see [FAIRBench_Metrics_Specification.md](../FAIRBench_Metrics_Specification.md).
+For the full implementation specification with formulas, benchmark prompt sets, and calibration guidance, see [FAIRBench_Metrics_Specification.md](FAIRBench_Metrics_Specification.md).
 
 ---
 
 ## Quick reference
 
-| Metric | Full name | What it detects | Direction | Pass threshold |
-|--------|-----------|-----------------|-----------|----------------|
-| **RSI** | Representation Skew Index | Who the model defaults to representing | ↓ lower | ≤ 0.15 |
-| **ODE** | Output Diversity Entropy | Whether outputs are diverse or collapsed | ↑ higher | ≥ 0.75 |
-| **CDS** | Counterfactual Divergence Score | Implicit demographic priors | ↓ lower | ≤ 0.10 |
-| **HSI** | Harm Severity Index | Harmful and stereotyping content | ↓ lower | ≤ 0.05 |
-| **SAR** | Stereotype Amplification Ratio | Whether model amplifies beyond baseline | ~ 1.0 | 0.80–1.20 |
-| **DSI** | Differential Service Index | Unequal refusals and response quality | ↓ lower | ≤ 0.10 |
+| Metric | Full name | What it detects | Direction |
+|--------|-----------|-----------------|-----------|
+| **RSI** | Representation Skew Index | Who the model defaults to representing | ↓ lower |
+| **ODE** | Output Diversity Entropy | Whether outputs are diverse or collapsed | ↑ higher |
+| **CDS** | Counterfactual Divergence Score | Implicit demographic priors | ↓ lower |
+| **HSI** | Harm Severity Index | Harmful and stereotyping content | ↓ lower |
+| **SAR** | Stereotype Amplification Ratio | Whether model amplifies beyond baseline | ~ 1.0 |
+| **DSI** | Differential Service Index | Unequal refusals and response quality | ↓ lower |
 
 ---
 

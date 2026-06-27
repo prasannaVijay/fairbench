@@ -112,7 +112,7 @@ class OutputDiversityEntropy(Metric):
                 "raw_entropy": float(entropy),
                 "max_entropy": float(max_entropy),
                 "n_clusters": n_clusters,
-                "cluster_distribution": dict(cluster_counts),
+                "cluster_distribution": {int(k): int(v) for k, v in cluster_counts.items()},
                 "method": "embedding_clusters",
             },
         )

@@ -553,7 +553,7 @@ fairbench:
 
   models:
     anthropic:
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-5
       max_tokens: 1024
     openai:
       model: gpt-4o
@@ -703,7 +703,7 @@ async def _run_image_evaluation(
         else:
             scenario_name = scenario  # Hope it's already registered
 
-    metric_list = [m.strip() for m in metrics.split(",")] if metrics else None
+    metric_list = None
     gen_config = ImageGenerationConfig(size=size, quality=quality)
 
     # ── Run ──────────────────────────────────────────────────────────────────
