@@ -12,7 +12,7 @@ from fairbench.core.types import GeneratedOutput, GenerationConfig, ModelInfo
 class AnthropicAdapter(ModelAdapter):
     """Adapter for Anthropic Claude models."""
 
-    DEFAULT_MODEL = "claude-sonnet-4-20250514"
+    DEFAULT_MODEL = "claude-sonnet-4-5"
 
     def __init__(
         self,
@@ -80,14 +80,21 @@ class AnthropicAdapter(ModelAdapter):
         start_time = time.perf_counter()
 
         try:
-            response = await client.messages.create(
-                model=self.model,
-                max_tokens=config.max_tokens or self.max_tokens,
-                temperature=config.temperature,
-                top_p=config.top_p,
-                messages=[{"role": "user", "content": prompt}],
-                **({"stop_sequences": config.stop_sequences} if config.stop_sequences else {}),
-            )
+            # Anthropic does not allow temperature and top_p to both be set.
+            # Use top_p only when explicitly requested (non-default value).
+            create_kwargs: dict[str, Any] = {
+                "model": self.model,
+                "max_tokens": config.max_tokens or self.max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if config.top_p != 1.0:
+                create_kwargs["top_p"] = config.top_p
+            else:
+                create_kwargs["temperature"] = config.temperature
+            if config.stop_sequences:
+                create_kwargs["stop_sequences"] = config.stop_sequences
+
+            response = await client.messages.create(**create_kwargs)
         except Exception as e:
             raise AdapterError(f"Anthropic API error: {e}") from e
 

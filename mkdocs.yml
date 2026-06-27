@@ -1,0 +1,86 @@
+site_name: FAIRBench
+site_description: A fairness benchmarking framework for multimodal generative AI systems
+site_url: https://prasannavijay.github.io/fairbench
+repo_url: https://github.com/prasannavijay/fairbench
+repo_name: fairbench
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  logo: fairbench-cover.png
+  favicon: fairbench-cover.png
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Text Benchmarks: getting-started/text-quickstart.md
+    - Image Benchmarks: getting-started/image-quickstart.md
+  - Concepts:
+    - The Case for Fairness: FAIRBench.md
+    - Architecture: architecture.md
+  - Reference:
+    - Metrics: metrics.md
+    - Full Metrics Specification: FAIRBench_Metrics_Specification.md
+    - Benchmark Spec: benchmark-spec.md
+    - Reading Your Scorecard: reading-your-scorecard.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/prasannavijay/fairbench
+
+copyright: Copyright &copy; 2026 Prasanna Vijayanathan

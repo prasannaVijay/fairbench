@@ -1,9 +1,29 @@
 """SQLite storage backend."""
 
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    """Convert numpy scalars/arrays to JSON-native types."""
+
+    def default(self, obj: Any) -> Any:
+        try:
+            import numpy as np
+            if isinstance(obj, np.integer):
+                return int(obj)
+            if isinstance(obj, np.floating):
+                if math.isnan(obj) or math.isinf(obj):
+                    return None
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError:
+            pass
+        return super().default(obj)
 
 import aiosqlite
 
@@ -93,12 +113,14 @@ class SQLiteBackend(StorageBackend):
         try:
             # Serialize complex fields to JSON
             outputs_json = json.dumps(
-                [o.model_dump(mode="json") for o in run.outputs]
+                [o.model_dump(mode="json") for o in run.outputs],
+                cls=_NumpyEncoder,
             )
             metrics_json = json.dumps(
-                [m.model_dump(mode="json") for m in run.metric_results]
+                [m.model_dump(mode="json") for m in run.metric_results],
+                cls=_NumpyEncoder,
             )
-            config_json = json.dumps(run.config_snapshot)
+            config_json = json.dumps(run.config_snapshot, cls=_NumpyEncoder)
 
             await db.execute(
                 """
@@ -113,8 +135,8 @@ class SQLiteBackend(StorageBackend):
                     run.status.value,
                     run.model_info.name,
                     run.model_info.provider,
-                    json.dumps(run.scenario_sets),
-                    json.dumps(run.metrics_requested),
+                    json.dumps(run.scenario_sets, cls=_NumpyEncoder),
+                    json.dumps(run.metrics_requested, cls=_NumpyEncoder),
                     run.created_at.isoformat(),
                     run.started_at.isoformat() if run.started_at else None,
                     run.completed_at.isoformat() if run.completed_at else None,

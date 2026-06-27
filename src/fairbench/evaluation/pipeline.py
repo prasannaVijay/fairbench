@@ -117,7 +117,10 @@ class EvaluationPipeline:
             embedding=eval_results.get("embedding"),
             toxicity=eval_results.get("toxicity"),
             sentiment=eval_results.get("sentiment"),
-            detected_entities=eval_results.get("entities", {}),
+            detected_entities={
+                k: v for k, v in eval_results.get("entities", {}).items()
+                if isinstance(v, list) and k not in ("known_limitations",)
+            },
             is_refusal=eval_results.get("is_refusal"),
             helpfulness_score=eval_results.get("helpfulness_score"),
             custom_evaluations={
@@ -229,7 +232,10 @@ class EvaluationPipeline:
                     embedding=eval_results.get("embedding"),
                     toxicity=eval_results.get("toxicity"),
                     sentiment=eval_results.get("sentiment"),
-                    detected_entities=eval_results.get("entities", {}),
+                    detected_entities={
+                        k: v for k, v in eval_results.get("entities", {}).items()
+                        if isinstance(v, list) and k not in ("known_limitations",)
+                    },
                     is_refusal=eval_results.get("is_refusal"),
                     helpfulness_score=eval_results.get("helpfulness_score"),
                     custom_evaluations={

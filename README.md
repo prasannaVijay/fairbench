@@ -1,15 +1,50 @@
 # FAIRBench
 
+*How do you know your Generative AI systems are fair to our society?*
 
-A fairness benchmarking framework for generative AI. FAIRBench evaluates both **text generation** (LLMs) and **image generation** models for representational bias, harmful stereotypes, and service-quality disparities — using counterfactual testing and six calibrated fairness metrics.
+*How do you even define fairness?*
+
+Fairbench is a fairness benchmarking framework for multimodal generative AI systems. FairBench's goal is to provide a systematic framework to measure how fair Generative AI models (and systems based on them) are to our society. 
+
+FairBench achieves this by measuring a model's representational bias, harmful stereotypes, and service-quality disparities, using counterfactual testing and six calibrated fairness metrics.
+
+FairBench lets you test and benchmark models and systems against real-world scenarios for fairness. Every run generates a scorecard.
 
 ---
 
+## How does it work?
+
+```mermaid
+flowchart LR
+    A[Scenario Generator] --> B[Counterfactual Testing]
+    B --> C[Model Interface]
+    C --> D[Output Evaluation]
+    D --> E[Metrics Engine]
+    E --> F[Scorecard Generator]
 ```
-Scenario Generator → Counterfactual Testing → Model Interface
-                                                     ↓
-Scorecard Generator ← Metrics Engine ← Output Evaluation
-```
+
+**Scenario Generator** — Reads a YAML file that defines prompts and the sensitive attributes to probe (gender, race, nationality, etc.). Built-in scenarios like `gender_occupation` and `soccer_player` are included; you can also [write your own](#4-write-your-own-scenario-file).
+
+**Counterfactual Testing** — Expands each prompt into demographic variants by swapping in the attribute values. "Describe a surgeon" becomes "Describe a female surgeon," "Describe a male surgeon," and so on. Only the attribute changes — everything else stays identical.
+
+**Model Interface** — Sends the expanded prompts to the model under test. Supports LLMs (Claude, GPT-4o, any HTTP endpoint) for text benchmarks and image models (DALL-E / gpt-image-1, Stable Diffusion) for image benchmarks. Swap the model with `--model`.
+
+**Output Evaluation** — Scores each response with a stack of local classifiers: sentiment, toxicity, semantic embeddings, and demographic signal extraction. For image outputs, Claude Vision captions each image first.
+
+**Metrics Engine** — Computes the six FAIRBench fairness metrics (RSI, ODE, CDS, HSI, SAR, DSI) by comparing distributions across the counterfactual variants to detect representational skew, stereotype amplification, and service disparity.
+
+**Scorecard Generator** — Packages results into per-metric bands (Pass / Watch / Flag / Fail) with reasoning and recommendations. Output formats: JSON (for CI pipelines) and a self-contained HTML report (`--html report.html`) you can open in any browser.
+
+---
+
+## Current Capabilities
+
+FairBench evaluates both **text generation** (LLMs) and **image generation** models. 
+
+### Coming up next 
+
+- Multimodal benchmarking
+- Audio and Video model benchmarking support.
 
 ---
 
@@ -306,7 +341,7 @@ fairbench init
 
 - [Metrics reference](docs/metrics.md) — what each metric measures, thresholds, and how to read results
 - [Architecture](docs/architecture.md) — pipeline design, extension points, storage
-- [Full metrics specification](FAIRBench_Metrics_Specification.md) — formulas, benchmark prompt sets, calibration guidance
+- [Full metrics specification](docs/FAIRBench_Metrics_Specification.md) — formulas, benchmark prompt sets, calibration guidance
 
 ---
 

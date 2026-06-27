@@ -104,7 +104,7 @@ class StereotypeAmplificationRatio(Metric):
                 attribute_results[attribute] = {
                     "observed_distribution": observed,
                     "pair_comparisons": pair_ratios,
-                    "mean_sar": np.mean([p["sar"] for p in pair_ratios]),
+                    "mean_sar": float(np.mean([p["sar"] for p in pair_ratios])),
                     "max_sar": max(p["sar"] for p in pair_ratios),
                 }
 
