@@ -1,6 +1,6 @@
 # **FAIRBench: A Fairness Benchmarking Framework for Generative AI**
 
-Authors: Prasanna Vijayanathan
+Authors: Prasanna Vijayanathan, Ranjana Venkataraman, Michael Simpson, Olga Scrivner
 
 ## **Abstract**
 
