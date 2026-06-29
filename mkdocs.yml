@@ -50,7 +50,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: !!python/name:pymdownx.superfences.fence_div_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -77,6 +77,9 @@ nav:
     - Full Metrics Specification: FAIRBench_Metrics_Specification.md
     - Benchmark Spec: benchmark-spec.md
     - Reading Your Scorecard: reading-your-scorecard.md
+
+extra_javascript:
+  - javascripts/mermaid.js
 
 extra:
   social:
