@@ -4,35 +4,37 @@
 
 FAIRBench supports two evaluation modalities — **text generation** and **image generation** — that share a common scenario format, counterfactual expansion logic, and six fairness metrics. The modalities differ in how outputs are generated and analysed; everything downstream (metrics, scorecards, HTML reports) is identical.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Scenario YAML                         │
-│  (same format for text and image pipelines)             │
-└────────────────────┬────────────────────────────────────┘
-                     │
-          CounterfactualGenerator
-          (expands base + variants)
-                     │
-         ┌───────────┴────────────┐
-         │                        │
-   Text pipeline             Image pipeline
-   FairBenchEngine           ImageBenchEngine
-         │                        │
-   ModelAdapter            ImageModelAdapter
-   (Anthropic/OpenAI)      (DALL-E / SD / HF)
-         │                        │
-   EvaluationPipeline       VisionAnalyzer (Claude Vision)
-   Layer 1 classifiers      CLIPEvaluator
-   Layer 2 LLM judge        ↓
-   (optional)               EvaluatedImage
-         │                  .to_evaluated_output()
-         ↓                        │
-   EvaluatedOutput ◄─────────────┘
-         │
-   Six Fairness Metrics
-   RSI · ODE · CDS · HSI · SAR · DSI
-         │
-   Scorecard (JSON + HTML)
+```mermaid
+flowchart TD
+    YAML["Scenario YAML\nsame format for text and image pipelines"]
+    CFG["CounterfactualGenerator\nexpands base + variants"]
+
+    YAML --> CFG
+
+    subgraph TEXT ["Text Pipeline"]
+        direction TB
+        TE["FairBenchEngine"]
+        MA["ModelAdapter\nAnthropic · OpenAI · OpenAI-compatible"]
+        EP["EvaluationPipeline\nLayer 1 classifiers + Layer 2 LLM judge"]
+        TE --> MA --> EP
+    end
+
+    subgraph IMAGE ["Image Pipeline"]
+        direction TB
+        IE["ImageBenchEngine"]
+        IMA["ImageModelAdapter\nDALL-E · Stable Diffusion · HuggingFace"]
+        VA["VisionAnalyzer\nClaude Vision"]
+        CE["CLIPEvaluator"]
+        EI["EvaluatedImage\nto_evaluated_output()"]
+        IE --> IMA --> VA & CE --> EI
+    end
+
+    CFG --> TE & IE
+    EP --> EO["EvaluatedOutput"]
+    EI --> EO
+
+    EO --> MET["Six Fairness Metrics\nRSI · ODE · CDS · HSI · SAR · DSI"]
+    MET --> SC["Scorecard — JSON + HTML"]
 ```
 
 ---
@@ -71,20 +73,26 @@ FAIRBench supports two evaluation modalities — **text generation** and **image
 
 ### Three-layer evaluator stack
 
-```
-Layer 1 — Deterministic (always on)
-  DemographicClassifier   → detected_entities["gender"], ["race"], …
-  RefusalClassifier       → is_refusal (bool)
-  ToxicityEvaluator       → toxicity scores (Detoxify)
-  SentimentEvaluator      → sentiment scores
-  EmbeddingEvaluator      → embedding (sentence-transformers)
+```mermaid
+flowchart TD
+    subgraph L1 ["Layer 1 — Deterministic (always on)"]
+        direction LR
+        DC["DemographicClassifier\ndetected_entities: gender, race…"]
+        RC["RefusalClassifier\nis_refusal"]
+        TE2["ToxicityEvaluator\ntoxicity scores via Detoxify"]
+        SE["SentimentEvaluator\npositive · negative · neutral"]
+        EE["EmbeddingEvaluator\nsentence-transformer embeddings"]
+    end
 
-Layer 2 — LLM judge (opt-in via engine.add_layer2_judge())
-  LLMJudgeEvaluator       → helpfulness_score, semantic fairness
-  ⚠ Judge must NOT be from the same provider as the model under test
+    subgraph L2 ["Layer 2 — LLM Judge (opt-in)"]
+        LJ["LLMJudgeEvaluator\nhelpfulness_score · semantic fairness\nMust not be the same provider as the model under test"]
+    end
 
-Layer 3 — Triage (always on, post-evaluation)
-  TriageRouter            → flags outputs in config_snapshot["triage_summary"]
+    subgraph L3 ["Layer 3 — Triage (always on, post-evaluation)"]
+        TR["TriageRouter\nflags severe outputs for human review"]
+    end
+
+    L1 --> L2 --> L3
 ```
 
 ---
