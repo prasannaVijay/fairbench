@@ -94,9 +94,17 @@
   gap: 0.8rem;
   margin-bottom: 1.8rem;
 }
-.fb-hero .md-button {
-  border-radius: 8px;
+/* Hero + closing CTAs live outside Material's .md-typeset scope, so they
+   don't inherit Material's button sizing. Define it explicitly here. */
+.fb-cta .md-button {
+  display: inline-block;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.82rem;
   font-weight: 600;
+  line-height: 1.5;
+  border: 1px solid var(--fb-blue-line);
+  border-radius: 8px;
+  cursor: pointer;
 }
 .fb-hero .md-button--primary {
   background: var(--fb-accent);
