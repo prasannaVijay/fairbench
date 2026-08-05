@@ -1,0 +1,55 @@
+/* ============================================================
+   FAIRBench site-wide theme — white background, blue-black text,
+   blue accents. Applies to every MkDocs Material page (not just
+   the custom homepage). Overrides Material's default palette vars.
+   ============================================================ */
+
+/* ---- Light scheme (default) ---- */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color:        #1d4ed8;   /* top bar / brand blue */
+  --md-primary-fg-color--light: #2563eb;
+  --md-primary-fg-color--dark:  #0b1f3a;   /* blue-black */
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #eef3ff;
+
+  --md-accent-fg-color:         #1d4ed8;   /* hovers, active nav */
+  --md-accent-fg-color--transparent: rgba(29,78,216,0.10);
+
+  --md-typeset-color:           #0b1f3a;   /* body text: blue-black */
+  --md-typeset-a-color:         #1d4ed8;   /* links: blue */
+
+  --md-default-bg-color:        #ffffff;   /* white page background */
+  --md-footer-bg-color:         #0b1f3a;   /* blue-black footer */
+  --md-footer-bg-color--dark:   #08162b;
+}
+
+/* Headings a touch deeper than body for hierarchy on white. */
+[data-md-color-scheme="default"] .md-typeset h1,
+[data-md-color-scheme="default"] .md-typeset h2,
+[data-md-color-scheme="default"] .md-typeset h3,
+[data-md-color-scheme="default"] .md-typeset h4 {
+  color: #0b1f3a;
+}
+
+/* Inline code + admonition/link accents pick up the blue family. */
+[data-md-color-scheme="default"] .md-typeset code {
+  background-color: #eef3ff;
+  color: #0b3a8a;
+}
+
+/* Search + header input contrast on the blue bar. */
+[data-md-color-scheme="default"] .md-search__input {
+  background-color: rgba(255,255,255,0.20);
+}
+[data-md-color-scheme="default"] .md-search__input::placeholder {
+  color: rgba(255,255,255,0.75);
+}
+
+/* ---- Dark scheme (slate) — keep blue accents, dark surfaces ---- */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #1d4ed8;
+  --md-primary-fg-color--light: #4f7cf0;
+  --md-primary-fg-color--dark:  #0b1f3a;
+  --md-accent-fg-color:         #4f7cf0;
+  --md-typeset-a-color:         #7aa2ff;
+}

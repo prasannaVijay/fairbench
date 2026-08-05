@@ -80,6 +80,7 @@ nav:
     - Reading Your Scorecard: reading-your-scorecard.md
 
 extra_css:
+  - stylesheets/theme.css
   - stylesheets/home.css
 
 extra_javascript:
