@@ -1,0 +1,187 @@
+{% extends "main.html" %}
+
+<!--
+  Custom FAIRBench landing page.
+  Overrides the default Material content with a rich, scorecard-first homepage.
+-->
+
+{% block tabs %}
+  {{ super() }}
+
+  <!-- ============================ HERO ============================ -->
+  <section class="fb-hero">
+    <div class="fb-hero__inner md-grid">
+      <div class="fb-hero__copy">
+        <p class="fb-eyebrow">Fairness benchmarking for generative AI</p>
+        <h1 class="fb-hero__title">How do you know your generative AI is fair to our&nbsp;society?</h1>
+        <p class="fb-hero__lede">
+          FAIRBench measures how fair a generative model (or a system using one)
+          is to the people it serves, its representational bias, harmful
+          stereotypes, and service-quality disparities, using counterfactual
+          testing and six calibrated fairness metrics.
+        </p>
+        <div class="fb-questions">
+          <span>And how do you even define fairness?</span>
+        </div>
+        <div class="fb-cta">
+          <a class="md-button md-button--primary" href="getting-started/installation/">Get started</a>
+          <a class="md-button" href="reading-your-scorecard/">Read a scorecard</a>
+          <a class="fb-ghlink" href="https://github.com/prasannavijay/fairbench">View on GitHub &rarr;</a>
+        </div>
+        <ul class="fb-hero__stats">
+          <li><strong>6</strong> calibrated metrics</li>
+          <li><strong>Text&nbsp;+&nbsp;Image</strong> models</li>
+          <li><strong>Thresholds &amp; bands</strong> per metric</li>
+        </ul>
+      </div>
+
+      <figure class="fb-hero__scorecard">
+        <img src="assets/images/soccer_scorecard.svg"
+             alt="Example FAIRBench scorecard for a soccer player image benchmark"
+             loading="eager" />
+        <figcaption>An actual FAIRBench scorecard, from the soccer player representation benchmark.</figcaption>
+      </figure>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}
+  <div class="fb-page md-grid md-typeset">
+
+    <!-- ================= SCORECARD, EXPLAINED ================= -->
+    <section class="fb-section">
+      <p class="fb-kicker">What an output looks like</p>
+      <h2 class="fb-h2">One page tells you if you're ready</h2>
+      <p class="fb-section__lede">
+        Instead of a single opaque score, FAIRBench returns a verdict you can act
+        on. The scorecard above reports one image benchmark; here is how to read it.
+      </p>
+
+      <div class="fb-annotate">
+        <div class="fb-annotate__item">
+          <span class="fb-dot fb-dot--verdict"></span>
+          <h3>Overall verdict</h3>
+          <p>A plain-language call at the top (<em>ship</em>, <em>investigate</em>,
+             or <em>do not ship</em>), driven by the worst band across all metrics.</p>
+        </div>
+        <div class="fb-annotate__item">
+          <span class="fb-dot fb-dot--band"></span>
+          <h3>Per-metric bands</h3>
+          <p>Each of the six metrics gets a value, its threshold, and a
+             Pass / Watch / Flag / Fail band, so nothing hides behind an average.</p>
+        </div>
+        <div class="fb-annotate__item">
+          <span class="fb-dot fb-dot--finding"></span>
+          <h3>Data-driven findings</h3>
+          <p>Every band comes with the specific numbers behind it (which
+             group, which scenario, how large the gap), pointing straight at the fix.</p>
+        </div>
+        <div class="fb-annotate__item">
+          <span class="fb-dot fb-dot--coverage"></span>
+          <h3>Honest coverage note</h3>
+          <p>The scorecard states what the evaluation could and could not see,
+             so a clean result is never mistaken for a complete one.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIX METRICS ================= -->
+    <section class="fb-section">
+      <p class="fb-kicker">The measurement</p>
+      <h2 class="fb-h2">Six metrics, each watching a different failure</h2>
+      <p class="fb-section__lede">
+        Fairness is not one number. FAIRBench decomposes it into six signals that
+        together separate a representational problem from a harmful one, and a
+        content problem from a service one.
+      </p>
+
+      <div class="fb-metrics">
+        <a class="fb-metric" href="metrics/#rsi-representation-skew-index">
+          <span class="fb-metric__code">RSI</span>
+          <span class="fb-metric__dir" title="lower is better">&darr; lower</span>
+          <h3>Representation Skew Index</h3>
+          <p>Who the model defaults to representing.</p>
+        </a>
+        <a class="fb-metric" href="metrics/#ode-output-diversity-entropy">
+          <span class="fb-metric__code">ODE</span>
+          <span class="fb-metric__dir" title="higher is better">&uarr; higher</span>
+          <h3>Output Diversity Entropy</h3>
+          <p>Whether outputs stay diverse or collapse to a single mode.</p>
+        </a>
+        <a class="fb-metric" href="metrics/#cds-counterfactual-divergence-score">
+          <span class="fb-metric__code">CDS</span>
+          <span class="fb-metric__dir" title="lower is better">&darr; lower</span>
+          <h3>Counterfactual Divergence Score</h3>
+          <p>The implicit prior a model assumes when you don't specify.</p>
+        </a>
+        <a class="fb-metric" href="metrics/#hsi-harm-severity-index">
+          <span class="fb-metric__code">HSI</span>
+          <span class="fb-metric__dir" title="lower is better">&darr; lower</span>
+          <h3>Harm Severity Index</h3>
+          <p>Harmful, toxic, or demeaning content in the outputs.</p>
+        </a>
+        <a class="fb-metric" href="metrics/#sar-stereotype-amplification-ratio">
+          <span class="fb-metric__code">SAR</span>
+          <span class="fb-metric__dir" title="close to 1.0 is fair">&asymp; 1.0</span>
+          <h3>Stereotype Amplification Ratio</h3>
+          <p>Whether the model amplifies bias beyond the real-world baseline.</p>
+        </a>
+        <a class="fb-metric" href="metrics/#dsi-differential-service-index">
+          <span class="fb-metric__code">DSI</span>
+          <span class="fb-metric__dir" title="lower is better">&darr; lower</span>
+          <h3>Differential Service Index</h3>
+          <p>Unequal refusals and response quality across groups.</p>
+        </a>
+      </div>
+
+      <div class="fb-bands">
+        <span class="fb-band fb-band--pass">Pass: equitable, monitor</span>
+        <span class="fb-band fb-band--watch">Watch: a gap, investigate</span>
+        <span class="fb-band fb-band--flag">Flag: remediate before release</span>
+        <span class="fb-band fb-band--fail">Fail: do not release</span>
+      </div>
+    </section>
+
+    <!-- ================= HOW IT WORKS ================= -->
+    <section class="fb-section">
+      <p class="fb-kicker">How it works</p>
+      <h2 class="fb-h2">From a prompt to a verdict</h2>
+      <ol class="fb-pipeline">
+        <li><span>1</span><strong>Scenario</strong>A YAML file defines prompts and the sensitive attributes to probe.</li>
+        <li><span>2</span><strong>Counterfactual</strong>Each prompt is expanded into demographic variants, changing only the sensitive attribute.</li>
+        <li><span>3</span><strong>Model</strong>Variants go to the model under test: any LLM or image model.</li>
+        <li><span>4</span><strong>Evaluation</strong>A stack of local classifiers scores every response; Vision captions images.</li>
+        <li><span>5</span><strong>Metrics</strong>The six fairness metrics compare distributions across variants.</li>
+        <li><span>6</span><strong>Scorecard</strong>Results are packaged into bands, reasoning, and recommendations.</li>
+      </ol>
+    </section>
+
+    <!-- ================= QUICK INSTALL ================= -->
+    <section class="fb-section fb-install">
+      <div class="fb-install__copy">
+        <p class="fb-kicker">Quick install</p>
+        <h2 class="fb-h2">Run your first audit in minutes</h2>
+        <p class="fb-section__lede">Requires Python 3.11+. Set an API key for the
+           service you want to test, then run a built-in benchmark.</p>
+      </div>
+      <div class="fb-install__code">
+<pre><code>pip install -e ".[dev]"
+
+export ANTHROPIC_API_KEY=sk-ant-...
+
+fairbench run gender_occupation \
+    --model anthropic --html report.html</code></pre>
+      </div>
+    </section>
+
+    <!-- ================= CLOSING ================= -->
+    <section class="fb-closing">
+      <h2>Measure what matters, before it ships.</h2>
+      <div class="fb-cta">
+        <a class="md-button md-button--primary" href="getting-started/installation/">Get started</a>
+        <a class="md-button" href="FAIRBench/">The case for fairness</a>
+      </div>
+    </section>
+
+  </div>
+{% endblock %}

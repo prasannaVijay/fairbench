@@ -1,3 +1,11 @@
+---
+title: FAIRBench
+template: home.html
+hide:
+  - navigation
+  - toc
+---
+
 # FAIRBench
 
 *How do you know your Generative AI systems are fair to our society?*

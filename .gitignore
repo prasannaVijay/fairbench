@@ -1,0 +1,71 @@
+# Environment variables — NEVER commit these
+.env
+.env.*
+*.env
+
+# Private / non-public directories (root-anchored to avoid matching src/fairbench/)
+/FAIRBench/
+
+# Output artifacts — run outputs, not source
+soccer_benchmark_scorecard.json
+reports/
+images/
+*.html
+!docs/*.html
+
+# Homepage source — re-include over the broad *.html and images/ rules above
+!overrides/
+!overrides/*.html
+!docs/assets/images/
+!docs/assets/images/*.svg
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python version management
+.python-version
+
+# SQLite database (local run history)
+*.db
+*.db-shm
+*.db-wal
+~/.fairbench/
+
+# MkDocs build output
+site/
