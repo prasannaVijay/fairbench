@@ -47,15 +47,15 @@ fairbench image-run soccer_player \
 
 ```python
 import asyncio
-from fairbench.adapters.image.dalle import DALLEAdapter
-from fairbench.core.image_engine import ImageBenchEngine
-from fairbench.evaluation.image.vision_analyzer import VisionAnalyzer
-from fairbench.evaluation.image.clip_evaluator import CLIPEvaluator
-from fairbench.reporting.html_report import generate_html_report
+from fairbench_genai.adapters.image.dalle import DALLEAdapter
+from fairbench_genai.core.image_engine import ImageBenchEngine
+from fairbench_genai.evaluation.image.vision_analyzer import VisionAnalyzer
+from fairbench_genai.evaluation.image.clip_evaluator import CLIPEvaluator
+from fairbench_genai.reporting.html_report import generate_html_report
 
 async def main():
     engine = ImageBenchEngine()
-    engine.scenario_registry.load_file("src/fairbench/scenarios/image/soccer_player.yaml")
+    engine.scenario_registry.load_file("src/fairbench_genai/scenarios/image/soccer_player.yaml")
 
     run = await engine.evaluate(
         model=DALLEAdapter(model="gpt-image-1"),

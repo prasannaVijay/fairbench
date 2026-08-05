@@ -1,0 +1,398 @@
+"""Main FAIRBench engine that orchestrates evaluations."""
+
+import asyncio
+from datetime import datetime, timezone
+from typing import Any
+from uuid import uuid4
+
+from fairbench_genai.adapters.base import ModelAdapter
+from fairbench_genai.adapters.registry import get_adapter_registry
+from fairbench_genai.core.config import Config, get_config
+from fairbench_genai.core.exceptions import FairBenchError
+from fairbench_genai.core.types import (
+    Distribution,
+    EvaluatedOutput,
+    EvaluationRun,
+    GenerationConfig,
+    MetricResult,
+    ModelInfo,
+    RunStatus,
+    Scenario,
+)
+from fairbench_genai.counterfactual.generator import CounterfactualGenerator, ExpandedPrompt
+from fairbench_genai.evaluation.demographic import DemographicClassifier
+from fairbench_genai.evaluation.embeddings import EmbeddingEvaluator
+from fairbench_genai.evaluation.pipeline import EvaluationPipeline
+from fairbench_genai.evaluation.refusal import RefusalClassifier
+from fairbench_genai.evaluation.sentiment import SentimentEvaluator
+from fairbench_genai.evaluation.toxicity import ToxicityEvaluator
+from fairbench_genai.evaluation.triage import TriageRouter
+from fairbench_genai.metrics.base import Metric
+from fairbench_genai.metrics.cds import CounterfactualDivergenceScore
+from fairbench_genai.metrics.dsi import DifferentialServiceIndex
+from fairbench_genai.metrics.hsi import HarmSeverityIndex
+from fairbench_genai.metrics.ode import OutputDiversityEntropy
+from fairbench_genai.metrics.rsi import RepresentationSkewIndex
+from fairbench_genai.metrics.sar import StereotypeAmplificationRatio
+from fairbench_genai.scenarios.registry import ScenarioRegistry, get_registry
+from fairbench_genai.storage.base import StorageBackend
+from fairbench_genai.storage.sqlite import SQLiteBackend
+
+
+class FairBenchEngine:
+    """Main engine for running fairness evaluations.
+
+    The engine coordinates:
+    - Scenario loading and expansion
+    - Model generation via adapters
+    - Output evaluation (embeddings, toxicity, etc.)
+    - Metric computation
+    - Result storage and reporting
+    """
+
+    # Default metrics — all six from the FAIRBench specification
+    DEFAULT_METRICS = ["RSI", "ODE", "CDS", "HSI", "SAR", "DSI"]
+
+    def __init__(
+        self,
+        config: Config | None = None,
+        storage: StorageBackend | None = None,
+    ) -> None:
+        """Initialize the FAIRBench engine.
+
+        Args:
+            config: Configuration. If None, loads from default locations.
+            storage: Storage backend. If None, uses SQLite.
+        """
+        self.config = config or get_config()
+        self.storage = storage or SQLiteBackend(self.config.storage.sqlite_path)
+        self.scenario_registry = get_registry()
+        self.adapter_registry = get_adapter_registry()
+        self.counterfactual_generator = CounterfactualGenerator()
+
+        # Initialize metrics — all six from the FAIRBench specification
+        self._metrics: dict[str, Metric] = {
+            "RSI": RepresentationSkewIndex(),
+            "ODE": OutputDiversityEntropy(),
+            "CDS": CounterfactualDivergenceScore(),
+            "HSI": HarmSeverityIndex(),
+            "SAR": StereotypeAmplificationRatio(),
+            "DSI": DifferentialServiceIndex(),
+        }
+
+        # Layer 2 judge evaluators (opt-in, added via add_layer2_judge())
+        self._layer2_judges: list[Any] = []
+
+    def register_adapter(self, name: str, adapter: ModelAdapter) -> None:
+        """Register a custom model adapter.
+
+        Args:
+            name: Name to register the adapter under.
+            adapter: The adapter instance.
+        """
+        self.adapter_registry.register(name, adapter)
+
+    def register_metric(self, metric: Metric) -> None:
+        """Register a custom metric.
+
+        Args:
+            metric: The metric to register.
+        """
+        self._metrics[metric.name] = metric
+
+    async def evaluate(
+        self,
+        model: str | ModelAdapter,
+        scenarios: list[str] | list[Scenario],
+        metrics: list[str] | None = None,
+        baseline: Distribution | None = None,
+        generation_config: GenerationConfig | None = None,
+        concurrency: int = 10,
+        save_run: bool = True,
+    ) -> EvaluationRun:
+        """Run a fairness evaluation.
+
+        Args:
+            model: Model adapter name or instance.
+            scenarios: Scenario set names or Scenario objects.
+            metrics: Metric names to compute. If None, uses all defaults.
+            baseline: Baseline distribution for metrics.
+            generation_config: Configuration for text generation.
+            concurrency: Maximum concurrent API calls.
+            save_run: Whether to persist the run to storage.
+
+        Returns:
+            The completed evaluation run.
+        """
+        # Resolve model adapter
+        if isinstance(model, str):
+            adapter = self.adapter_registry.get(model)
+        else:
+            adapter = model
+
+        # Resolve scenarios
+        scenario_objs = self._resolve_scenarios(scenarios)
+
+        # Create run record
+        run = EvaluationRun(
+            id=uuid4(),
+            status=RunStatus.PENDING,
+            model_info=adapter.get_model_info(),
+            scenario_sets=[s if isinstance(s, str) else "custom" for s in scenarios],
+            metrics_requested=metrics or self.DEFAULT_METRICS,
+            config_snapshot={
+                "generation_config": (generation_config or GenerationConfig()).model_dump(),
+                "concurrency": concurrency,
+            },
+        )
+
+        if save_run:
+            await self.storage.save_run(run)
+
+        try:
+            # Update status
+            run = EvaluationRun(
+                **{**run.model_dump(), "status": RunStatus.RUNNING, "started_at": datetime.now(timezone.utc)}
+            )
+            if save_run:
+                await self.storage.update_run(run)
+
+            # Expand scenarios into prompts
+            prompts = self._expand_scenarios(scenario_objs)
+
+            # Create evaluation pipeline
+            pipeline = self._create_pipeline(
+                adapter, generation_config, concurrency
+            )
+
+            # Run evaluation
+            outputs = await pipeline.run_batch_optimized(prompts)
+
+            # Compute metrics
+            metric_results = self._compute_metrics(
+                outputs, metrics or self.DEFAULT_METRICS, baseline
+            )
+
+            # Layer 3: triage — flag outputs for human review
+            triage_summary = self._triage(outputs, metric_results)
+
+            # Update run with results
+            run = EvaluationRun(
+                **{
+                    **run.model_dump(),
+                    "status": RunStatus.COMPLETED,
+                    "completed_at": datetime.now(timezone.utc),
+                    "outputs": outputs,
+                    "metric_results": metric_results,
+                    "config_snapshot": {
+                        **run.config_snapshot,
+                        "triage_summary": triage_summary,
+                    },
+                }
+            )
+
+        except Exception as e:
+            run = EvaluationRun(
+                **{
+                    **run.model_dump(),
+                    "status": RunStatus.FAILED,
+                    "completed_at": datetime.now(timezone.utc),
+                    "error_message": str(e),
+                }
+            )
+            if save_run:
+                await self.storage.update_run(run)
+            raise FairBenchError(f"Evaluation failed: {e}") from e
+
+        if save_run:
+            await self.storage.update_run(run)
+
+        return run
+
+    def _resolve_scenarios(
+        self, scenarios: list[str] | list[Scenario]
+    ) -> list[Scenario]:
+        """Resolve scenario references to Scenario objects."""
+        result = []
+        for s in scenarios:
+            if isinstance(s, Scenario):
+                result.append(s)
+            elif isinstance(s, str):
+                # Try as scenario set name first
+                try:
+                    scenario_set = self.scenario_registry.get_set(s)
+                    result.extend(scenario_set.scenarios)
+                except Exception:
+                    # Try as individual scenario ID
+                    scenario = self.scenario_registry.get_scenario(s)
+                    result.append(scenario)
+        return result
+
+    def _expand_scenarios(self, scenarios: list[Scenario]) -> list[ExpandedPrompt]:
+        """Expand scenarios into prompts including counterfactuals."""
+        return self.counterfactual_generator.expand_scenarios(scenarios)
+
+    def _triage(
+        self,
+        outputs: list[EvaluatedOutput],
+        metric_results: list[MetricResult],
+    ) -> dict[str, Any]:
+        """Run Layer 3 triage and return a summary dict for the scorecard."""
+        router = TriageRouter()
+        flags = router.triage(outputs, metric_results)
+        return router.summary(flags)
+
+    def add_layer2_judge(
+        self,
+        judges: list[Any],
+        mode: str = "fairness",
+        demographic_context: str = "",
+        model_under_test_provider: str | None = None,
+        calibration_validated: bool = False,
+        calibration_notes: str = "",
+    ) -> None:
+        """Add a Layer 2 LLM judge evaluator to the default pipeline.
+
+        This is a convenience method for configuring the optional Layer 2
+        evaluation stack. The judge is added to any pipeline created by
+        _create_pipeline() after this call.
+
+        Per the spec, the judge must NOT be from the same provider family
+        as the model under test. Pass model_under_test_provider to enforce this.
+
+        Args:
+            judges: List of JudgeModel instances (use ≥2 from different providers).
+            mode: "fairness" (SAR/HSI) or "helpfulness" (DSI proxy).
+            demographic_context: Description of the demographic group.
+            model_under_test_provider: Provider of the model being evaluated.
+            calibration_validated: Whether the judge has been calibrated.
+            calibration_notes: Free-text calibration documentation.
+        """
+        from fairbench_genai.evaluation.llm_judge import LLMJudgeEvaluator
+        judge_evaluator = LLMJudgeEvaluator(
+            judges=judges,
+            mode=mode,
+            demographic_context=demographic_context,
+            model_under_test_provider=model_under_test_provider,
+            calibration_validated=calibration_validated,
+            calibration_notes=calibration_notes,
+        )
+        self._layer2_judges.append(judge_evaluator)
+
+    def _create_pipeline(
+        self,
+        adapter: ModelAdapter,
+        generation_config: GenerationConfig | None,
+        concurrency: int,
+    ) -> EvaluationPipeline:
+        """Create the evaluation pipeline with the three-layer evaluator stack.
+
+        Layer 1 (deterministic classifiers — always on):
+          - DemographicClassifier: pronoun + name signals for RSI/ODE/CDS
+          - RefusalClassifier: rule-based refusal detection for DSI
+          - ToxicityEvaluator: Detoxify/local model for HSI
+          - SentimentEvaluator: for CDS sentiment divergence component
+          - EmbeddingEvaluator: for CDS/ODE embedding-based diversity
+
+        Layer 2 (LLM judges — opt-in via add_layer2_judge() / configure_llm_judge()):
+          Not included in the default pipeline. Add explicitly with
+          engine.add_layer2_judge(judges=[...], mode="fairness"|"helpfulness").
+
+        Layer 3 (triage — always on, runs post-evaluation):
+          TriageRouter is run after outputs are produced; results are stored
+          in run.config_snapshot["triage_summary"].
+        """
+        evaluators = [
+            # Layer 1: deterministic classifiers
+            DemographicClassifier(),
+            RefusalClassifier(),
+            ToxicityEvaluator(backend="local"),
+            SentimentEvaluator(),
+            EmbeddingEvaluator(device="cpu"),
+            # Layer 2: optional LLM judges (added via add_layer2_judge())
+            *self._layer2_judges,
+        ]
+
+        return EvaluationPipeline(
+            model=adapter,
+            evaluators=evaluators,
+            concurrency=concurrency,
+            generation_config=generation_config,
+        )
+
+    def _compute_metrics(
+        self,
+        outputs: list[EvaluatedOutput],
+        metric_names: list[str],
+        baseline: Distribution | None,
+    ) -> list[MetricResult]:
+        """Compute requested metrics from evaluated outputs."""
+        results = []
+
+        for name in metric_names:
+            if name not in self._metrics:
+                continue
+
+            metric = self._metrics[name]
+            try:
+                result = metric.compute(outputs, baseline)
+                results.append(result)
+            except Exception as e:
+                # Record error but continue with other metrics
+                results.append(
+                    MetricResult(
+                        metric_name=name,
+                        value=float("nan"),
+                        n_samples=len(outputs),
+                        interpretation=f"Error: {e}",
+                    )
+                )
+
+        return results
+
+    async def get_run(self, run_id: str) -> EvaluationRun | None:
+        """Get an evaluation run by ID.
+
+        Args:
+            run_id: The run ID.
+
+        Returns:
+            The evaluation run, or None if not found.
+        """
+        return await self.storage.get_run(run_id)
+
+    async def list_runs(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Any]:
+        """List recent evaluation runs.
+
+        Args:
+            limit: Maximum number of runs to return.
+            offset: Number of runs to skip.
+
+        Returns:
+            List of run summaries.
+        """
+        return await self.storage.list_runs(limit=limit, offset=offset)
+
+    def get_available_metrics(self) -> dict[str, str]:
+        """Get available metrics and their descriptions.
+
+        Returns:
+            Dictionary mapping metric names to descriptions.
+        """
+        return {name: metric.description for name, metric in self._metrics.items()}
+
+    def get_available_scenarios(self) -> list[str]:
+        """Get available scenario set names.
+
+        Returns:
+            List of registered scenario set names.
+        """
+        return self.scenario_registry.list_sets()
+
+    async def close(self) -> None:
+        """Close the engine and release resources."""
+        await self.storage.close()

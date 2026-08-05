@@ -35,12 +35,12 @@ async def run_benchmark(
     use_clip: bool = True,
     quick: bool = False,
 ) -> None:
-    from fairbench.adapters.image.dalle import DALLEAdapter
-    from fairbench.core.image_engine import ImageBenchEngine
-    from fairbench.core.image_types import ImageGenerationConfig
-    from fairbench.core.types import Distribution
-    from fairbench.evaluation.image.clip_evaluator import CLIPEvaluator
-    from fairbench.evaluation.image.vision_analyzer import VisionAnalyzer
+    from fairbench_genai.adapters.image.dalle import DALLEAdapter
+    from fairbench_genai.core.image_engine import ImageBenchEngine
+    from fairbench_genai.core.image_types import ImageGenerationConfig
+    from fairbench_genai.core.types import Distribution
+    from fairbench_genai.evaluation.image.clip_evaluator import CLIPEvaluator
+    from fairbench_genai.evaluation.image.vision_analyzer import VisionAnalyzer
 
     print("=" * 64)
     print("FAIRBench — Soccer Image Generation Fairness Benchmark")
@@ -66,7 +66,7 @@ async def run_benchmark(
     # Load soccer scenarios from the built-in YAML
     scenarios_yaml = (
         Path(__file__).parent.parent
-        / "src" / "fairbench" / "scenarios" / "image" / "soccer_player.yaml"
+        / "src" / "fairbench_genai" / "scenarios" / "image" / "soccer_player.yaml"
     )
     engine.scenario_registry.load_file(str(scenarios_yaml))
 

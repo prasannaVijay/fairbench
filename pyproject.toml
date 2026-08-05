@@ -1,5 +1,5 @@
 [project]
-name = "fairbench"
+name = "fairbench-genai"
 version = "0.1.0"
 description = "A fairness benchmarking framework for generative AI"
 readme = "README.md"
@@ -52,14 +52,14 @@ mcp = [
 ]
 
 [project.scripts]
-fairbench = "fairbench.cli.main:app"
+fairbench = "fairbench_genai.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/fairbench"]
+packages = ["src/fairbench_genai"]
 
 [tool.ruff]
 line-length = 100

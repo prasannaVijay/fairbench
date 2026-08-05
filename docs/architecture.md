@@ -167,8 +167,8 @@ scenarios:
             value: black
 ```
 
-Built-in text scenarios live in `src/fairbench/scenarios/builtin/`.
-Built-in image scenarios live in `src/fairbench/scenarios/image/`.
+Built-in text scenarios live in `src/fairbench_genai/scenarios/builtin/`.
+Built-in image scenarios live in `src/fairbench_genai/scenarios/image/`.
 
 ---
 
@@ -184,8 +184,8 @@ Image pipeline runs are not yet persisted to SQLite (results are returned in-mem
 
 ### Custom model adapter (text)
 ```python
-from fairbench.adapters.base import ModelAdapter
-from fairbench.core.types import GeneratedOutput, ModelInfo
+from fairbench_genai.adapters.base import ModelAdapter
+from fairbench_genai.core.types import GeneratedOutput, ModelInfo
 
 class MyAdapter(ModelAdapter):
     async def generate(self, prompt, config=None) -> GeneratedOutput: ...
@@ -198,8 +198,8 @@ engine.register_adapter("my-model", MyAdapter())
 
 ### Custom image adapter
 ```python
-from fairbench.adapters.image.base import ImageModelAdapter
-from fairbench.core.image_types import GeneratedImage, ModelInfo
+from fairbench_genai.adapters.image.base import ImageModelAdapter
+from fairbench_genai.core.image_types import GeneratedImage, ModelInfo
 
 class MyImageAdapter(ImageModelAdapter):
     async def generate(self, prompt, config=None) -> GeneratedImage: ...
@@ -210,8 +210,8 @@ class MyImageAdapter(ImageModelAdapter):
 
 ### Custom metric
 ```python
-from fairbench.metrics.base import Metric
-from fairbench.core.types import EvaluatedOutput, MetricResult
+from fairbench_genai.metrics.base import Metric
+from fairbench_genai.core.types import EvaluatedOutput, MetricResult
 
 class MyMetric(Metric):
     def compute(self, outputs: list[EvaluatedOutput], baseline=None) -> MetricResult: ...
@@ -226,7 +226,7 @@ engine.register_metric(MyMetric())
 
 ### Custom scenarios
 ```python
-from fairbench.core.types import Scenario, CounterfactualGroup, CounterfactualVariant
+from fairbench_genai.core.types import Scenario, CounterfactualGroup, CounterfactualVariant
 
 scenario = Scenario(
     id="my_scenario",

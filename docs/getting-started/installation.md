@@ -4,6 +4,20 @@ FAIRBench requires **Python 3.11+**.
 
 ## Install the package
 
+Install the published package from PyPI:
+
+```bash
+pip install fairbench-genai
+```
+
+The command-line tool is still called `fairbench`, and the Python import is `fairbench_genai`:
+
+```python
+import fairbench_genai
+```
+
+To work on FAIRBench itself, clone the repository and install it in editable mode with the development extras:
+
 ```bash
 pip install -e ".[dev]"
 ```
