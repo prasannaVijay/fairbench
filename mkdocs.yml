@@ -72,6 +72,7 @@ nav:
     - Image Benchmarks: getting-started/image-quickstart.md
   - Concepts:
     - The Case for Fairness: FAIRBench.md
+    - The White Paper: whitepaper.md
     - Architecture: architecture.md
   - Reference:
     - Metrics: metrics.md
