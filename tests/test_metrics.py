@@ -3,7 +3,7 @@
 import pytest
 from uuid import uuid4
 
-from fairbench.core.types import (
+from fairbench_genai.core.types import (
     Distribution,
     EvaluatedOutput,
     GeneratedOutput,
@@ -12,11 +12,11 @@ from fairbench.core.types import (
     SentimentScores,
     ToxicityScores,
 )
-from fairbench.metrics.cds import CounterfactualDivergenceScore
-from fairbench.metrics.hsi import HarmSeverityIndex
-from fairbench.metrics.ode import OutputDiversityEntropy
-from fairbench.metrics.rsi import RepresentationSkewIndex
-from fairbench.metrics.sar import StereotypeAmplificationRatio
+from fairbench_genai.metrics.cds import CounterfactualDivergenceScore
+from fairbench_genai.metrics.hsi import HarmSeverityIndex
+from fairbench_genai.metrics.ode import OutputDiversityEntropy
+from fairbench_genai.metrics.rsi import RepresentationSkewIndex
+from fairbench_genai.metrics.sar import StereotypeAmplificationRatio
 
 
 def make_output(

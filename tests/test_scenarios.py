@@ -3,9 +3,9 @@
 import pytest
 from pathlib import Path
 
-from fairbench.core.types import FairnessDimension, Scenario, ScenarioSet
-from fairbench.scenarios.base import ScenarioLoader
-from fairbench.scenarios.registry import ScenarioRegistry
+from fairbench_genai.core.types import FairnessDimension, Scenario, ScenarioSet
+from fairbench_genai.scenarios.base import ScenarioLoader
+from fairbench_genai.scenarios.registry import ScenarioRegistry
 
 
 class TestScenarioLoader:
