@@ -1,5 +1,4 @@
 ---
-title: FAIRBench
 template: home.html
 hide:
   - navigation

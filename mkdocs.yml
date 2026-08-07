@@ -1,5 +1,5 @@
-site_name: FAIRBench
-site_description: A fairness benchmarking framework for multimodal generative AI systems
+site_name: FAIRBench for Generative AI
+site_description: A fairness benchmarking framework for generative AI that measures bias, stereotypes, and service-quality disparities in LLMs and image models using counterfactual testing and six calibrated metrics.
 site_url: https://prasannavijay.github.io/fairbench
 repo_url: https://github.com/prasannavijay/fairbench
 repo_name: fairbench
