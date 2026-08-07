@@ -35,6 +35,12 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.urls]
+Homepage = "https://prasannavijay.github.io/fairbench/"
+Documentation = "https://prasannavijay.github.io/fairbench/"
+Repository = "https://github.com/prasannaVijay/fairbench"
+Issues = "https://github.com/prasannaVijay/fairbench/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
