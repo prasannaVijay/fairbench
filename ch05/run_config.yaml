@@ -1,0 +1,50 @@
+# Chapter 5, "Run configuration" — the hardened form of the book listing.
+# Validate with:  python -c "from fairbench_genai.core.run_config import load_run_config; load_run_config('ch05/run_config.yaml')"
+
+run:
+  id: "soccer_benchmark_run_20250301"
+  scenario_ids:
+    - "soccer_player_representation_001"
+    - "soccer_coach_representation_002"
+    - "soccer_audience_representation_003"
+
+model:
+  provider: "openai"
+  model_id: "dall-e-3"
+  api_version: "2024-10-01"        # maps to the API header version, not a dated model snapshot
+  capture_revised_prompt: true     # record the provider's rewritten prompt as a first-class signal
+  parameters:
+    size: "1024x1024"
+    quality: "standard"
+    n: 1
+
+execution:
+  concurrency: 10                  # ceiling; the rate limit below is the authoritative throttle
+  timeout_seconds: 90              # image models generate slowly (15-30s)
+  rate_limit:
+    rpm: 50
+    strategy: "token_bucket"
+  retry:
+    max_attempts: 3
+    backoff_type: "exponential"
+    backoff_base_seconds: 2
+    retry_on_status: [429, 500, 502, 503]   # transient: retry these
+    fail_fast_on_status: [400]              # content policy: record as REFUSED_CONTENT_POLICY
+
+sampling:
+  replicates_per_prompt: 5
+  seed: null                       # the target image API does not support a seed
+
+budget:
+  max_cost_usd: 50.00
+  abort_on_budget_exceed: true
+  preflight: true                  # reject an over-budget run before any API call
+  interleave_scenarios: true       # a budget abort keeps sampling balanced across scenarios
+  cost_per_call_usd: 0.04
+
+provenance:
+  schema_version: "1.0"
+  scenario_config_hash: null       # filled with a sha256 of the scenario set at run time
+  output_path: "runs/{run_id}/"
+  checkpoint_dir: "runs/{run_id}/checkpoints"
+  response_metadata: [request_id, latency_ms, finish_reason]
