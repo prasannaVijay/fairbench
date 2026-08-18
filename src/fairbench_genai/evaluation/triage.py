@@ -100,6 +100,8 @@ class TriageRouter:
         judge_disagreement_flag: bool = True,
         boundary_margin: float = _BOUNDARY_MARGIN,
         min_human_review_rate: float = 0.15,  # spec minimum
+        random_audit_rate: float = 0.02,      # stratified sample regardless of flags
+        max_review_queue: int | None = None,  # cap the backlog if set
     ) -> None:
         """Initialise the triage router.
 
@@ -117,6 +119,8 @@ class TriageRouter:
         self.judge_disagreement_flag = judge_disagreement_flag
         self.boundary_margin = boundary_margin
         self.min_human_review_rate = min_human_review_rate
+        self.random_audit_rate = random_audit_rate
+        self.max_review_queue = max_review_queue
 
     def triage(
         self,
@@ -160,8 +164,62 @@ class TriageRouter:
                 ),
             )
             flags.extend(additional)
+            flagged_ids.update(f.output_id for f in additional)
+
+        # Stratified random audit: sample a fixed fraction of outputs regardless
+        # of any flag, so the classifier is validated on cases it gets confidently
+        # wrong. This decouples classifier accuracy from model bias and removes the
+        # circular review asymmetry of routing only on the classifier's own flags.
+        if self.random_audit_rate > 0:
+            flags.extend(self._random_audit(outputs, flagged_ids))
+
+        # Cap the review backlog if configured: keep all high-severity flags and
+        # sample the rest, so a loose threshold cannot generate an unmanageable
+        # (and selection-biased) queue.
+        if self.max_review_queue is not None and len(flags) > self.max_review_queue:
+            flags = self._cap_queue(flags, self.max_review_queue)
 
         return flags
+
+    def _random_audit(
+        self, outputs: list[EvaluatedOutput], already_flagged: set[str]
+    ) -> list[TriageFlag]:
+        """Pick a deterministic, stratified random sample of unflagged outputs."""
+        import random
+
+        rng = random.Random(0)
+        by_scenario: dict[str, list[EvaluatedOutput]] = {}
+        for o in outputs:
+            if str(o.id) in already_flagged:
+                continue
+            by_scenario.setdefault(o.scenario_id, []).append(o)
+
+        picks: list[EvaluatedOutput] = []
+        for group in by_scenario.values():
+            k = round(self.random_audit_rate * len(group))
+            if k > 0:
+                picks.extend(rng.sample(group, min(k, len(group))))
+
+        return [
+            TriageFlag(
+                output_id=str(o.id),
+                scenario_id=o.scenario_id,
+                reason="random_audit — stratified sample; validates the classifier on unflagged outputs",
+                severity="low",
+                layer="audit",
+                details={"random_audit": True},
+            )
+            for o in picks
+        ]
+
+    def _cap_queue(self, flags: list[TriageFlag], cap: int) -> list[TriageFlag]:
+        """Keep all high-severity flags and a deterministic sample of the rest."""
+        import random
+
+        high = [f for f in flags if f.severity == "high"]
+        rest = [f for f in flags if f.severity != "high"]
+        random.Random(0).shuffle(rest)
+        return (high + rest)[:cap]
 
     def _check_output(self, output: EvaluatedOutput) -> list[TriageFlag]:
         """Check a single output for triage triggers."""

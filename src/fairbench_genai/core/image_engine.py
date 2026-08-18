@@ -20,7 +20,9 @@ from typing import Any
 from uuid import uuid4
 
 from fairbench_genai.adapters.image.base import ImageModelAdapter
-from fairbench_genai.core.exceptions import FairBenchError
+from fairbench_genai.core.exceptions import AdapterError, ConfigError, FairBenchError
+from fairbench_genai.core.rate_limit import TokenBucket
+from fairbench_genai.core.run_config import RunConfig
 from fairbench_genai.core.image_types import (
     EvaluatedImage,
     ImageAnalysis,
@@ -87,6 +89,7 @@ class ImageBenchEngine:
         baseline: Distribution | None = None,
         generation_config: ImageGenerationConfig | None = None,
         concurrency: int = 5,
+        run_config: RunConfig | None = None,
     ) -> ImageEvaluationRun:
         """Run an image fairness evaluation.
 
@@ -111,6 +114,18 @@ class ImageBenchEngine:
         scenario_objs = self._resolve_scenarios(scenarios)
         prompts = self.counterfactual_generator.expand_scenarios(scenario_objs)
 
+        # Chapter 5, "Run configuration": if a RunConfig is supplied, honour its
+        # execution and budget settings, and reject an over-budget run up front.
+        if run_config is not None:
+            concurrency = run_config.execution.concurrency
+            if run_config.budget.preflight:
+                estimate = len(prompts) * run_config.budget.cost_per_call_usd
+                if estimate > run_config.budget.max_cost_usd:
+                    raise ConfigError(
+                        f"pre-flight: estimated ${estimate:.2f} for {len(prompts)} calls "
+                        f"exceeds budget ${run_config.budget.max_cost_usd:.2f}"
+                    )
+
         run = ImageEvaluationRun(
             id=uuid4(),
             status=RunStatus.PENDING,
@@ -134,7 +149,7 @@ class ImageBenchEngine:
             print(f"  Generating {len(prompts)} images (concurrency={concurrency})…")
             from fairbench_genai.core.image_types import GeneratedImage
             raw_images = await self._generate_images(
-                model, prompts, generation_config, concurrency
+                model, prompts, generation_config, concurrency, run_config
             )
 
             # Step 2: Analyze images
@@ -187,15 +202,47 @@ class ImageBenchEngine:
         prompts: list[ExpandedPrompt],
         config: ImageGenerationConfig,
         concurrency: int,
+        run_config: RunConfig | None = None,
     ):
-        """Generate images with concurrency limiting."""
+        """Generate images with concurrency limiting, and, when a RunConfig is
+        supplied, a token-bucket rate limit, per-call timeout, and retry policy.
+        """
         semaphore = asyncio.Semaphore(concurrency)
+        bucket: TokenBucket | None = None
+        timeout: int | None = None
+        retry = None
+        if run_config is not None:
+            bucket = TokenBucket(run_config.execution.rate_limit.rpm)
+            timeout = run_config.execution.timeout_seconds
+            retry = run_config.execution.retry
 
         async def _one(prompt: ExpandedPrompt):
-            async with semaphore:
-                return await model.generate(prompt.prompt, config)
+            async with semaphore:              # ceiling on concurrent calls
+                if bucket is not None:
+                    await bucket.acquire()     # authoritative per-minute throttle
+                return await self._generate_with_retry(model, prompt.prompt, config, timeout, retry)
 
         return list(await asyncio.gather(*[_one(p) for p in prompts]))
+
+    async def _generate_with_retry(self, model, prompt_text, config, timeout, retry):
+        """One generation call with optional timeout and retry-with-backoff.
+
+        Content-policy refusals return as a GeneratedImage (not an exception) and
+        so are never retried — a refusal is data. Transient provider/network
+        errors (AdapterError) and timeouts are retried per the retry policy.
+        """
+        attempts = retry.max_attempts if retry else 1
+        for attempt in range(attempts):
+            try:
+                if timeout:
+                    return await asyncio.wait_for(model.generate(prompt_text, config), timeout=timeout)
+                return await model.generate(prompt_text, config)
+            except (AdapterError, asyncio.TimeoutError):
+                if retry is None or attempt == attempts - 1:
+                    raise
+                base = retry.backoff_base_seconds
+                delay = base * (2 ** attempt) if retry.backoff_type == "exponential" else base
+                await asyncio.sleep(delay)
 
     def _assemble_evaluated_images(
         self,

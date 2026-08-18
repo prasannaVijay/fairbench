@@ -184,6 +184,12 @@ class DALLEAdapter(ImageModelAdapter):
             metadata={
                 "model": self.model,
                 "revised_prompt": revised_prompt,
+                # Per-call cost feeds the run budget; request id supports billing
+                # and rate-limit disputes with the provider.
+                "cost_usd": {
+                    "1024x1024": 0.04, "1024x1792": 0.08, "1792x1024": 0.08,
+                }.get(config.size, 0.04),
+                "request_id": getattr(response, "_request_id", None),
             },
         )
 

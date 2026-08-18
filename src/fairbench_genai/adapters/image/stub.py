@@ -164,5 +164,10 @@ class StubImageAdapter(ImageModelAdapter):
             # so the pipeline can measure rewriter effects.
             revised_prompt=f"{prompt} — rendered by stub",
             latency_ms=latency_ms,
-            metadata={"status": "SUCCESS", "stub_analysis": analysis},
+            metadata={
+                "status": "SUCCESS",
+                "stub_analysis": analysis,
+                "cost_usd": 0.04,
+                "request_id": f"stub-{h % 1_000_000:06d}",
+            },
         )
