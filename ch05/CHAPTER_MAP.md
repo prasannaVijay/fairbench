@@ -14,7 +14,8 @@ Chapter 5 hardening and this map. Everything here is runnable from a clone.
 | On revised prompts | `capture_revised_prompt` in `run_config.py`; `revised_prompt` handling in `adapters/image/dalle.py` |
 | Metrics and Scorecard Service | `src/fairbench_genai/metrics/` (RSI, CDS, …), `src/fairbench_genai/reporting/scorecard.py` |
 | Storage and cataloging of runs | `src/fairbench_genai/storage/` (SQLite backend) |
-| Human review and annotation | `src/fairbench_genai/evaluation/` (routing / triage) |
+| Human review and annotation | `src/fairbench_genai/evaluation/triage.py` (routing / triage) |
+| Security, logging, and audit trails | `src/fairbench_genai/core/audit.py` (HMAC-linked, sequence-numbered, `verify_chain()`) |
 | Offline soccer demo (no API key) | `examples/soccer_stub_benchmark.py` + `src/fairbench_genai/adapters/image/stub.py`, `evaluation/image/stub.py` |
 
 ## Run configuration (hardened)
