@@ -64,7 +64,7 @@ fairbench run my_scenarios.yaml --model anthropic --html report.html
 
 ```python
 import asyncio
-from fairbench import FairBenchEngine, generate_scorecard
+from fairbench_genai import FairBenchEngine, generate_scorecard
 from fairbench_genai.adapters.anthropic import AnthropicAdapter
 from fairbench_genai.reporting.html_report import generate_html_report
 

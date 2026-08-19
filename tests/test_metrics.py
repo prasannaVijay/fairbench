@@ -140,7 +140,9 @@ class TestRSI:
         baseline = Distribution({"male": 0.5, "female": 0.5})
         result = rsi.compute(outputs, baseline)
 
-        assert result.value > 0.1  # Should show skew
+        # A 75/25 split is a mild skew: the JSD-based RSI is small but strictly
+        # positive (~0.034), and well above the 0.0 a balanced split produces.
+        assert 0.0 < result.value < 0.1  # Should show skew
 
 
 class TestODE:

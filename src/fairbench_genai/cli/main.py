@@ -2,12 +2,37 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
+
+
+def _load_dotenv(path: str = ".env") -> None:
+    """Load ``KEY=VALUE`` pairs from a local ``.env`` file into the environment.
+
+    Dependency-free. Existing environment variables always take precedence, so
+    variables already exported in the shell are never overridden.
+    """
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+# Load a project-root .env before any command reads API keys from the environment.
+_load_dotenv()
 
 app = typer.Typer(
     name="fairbench",

@@ -1,6 +1,6 @@
 # Installation
 
-FAIRBench requires **Python 3.11+**.
+FAIRBench requires **Python 3.10+**.
 
 ## Install the package
 

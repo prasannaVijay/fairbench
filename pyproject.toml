@@ -3,7 +3,7 @@ name = "fairbench-genai"
 version = "0.1.0"
 description = "A fairness benchmarking framework for generative AI"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Prasanna Vijayanathan" }]
 keywords = ["fairness", "benchmarking", "generative-ai", "llm", "bias"]
@@ -13,6 +13,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
