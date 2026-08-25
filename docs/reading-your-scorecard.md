@@ -150,7 +150,8 @@ The JSON file contains the full evaluation data. Its top-level structure is:
 
 ## Metric thresholds
 
-The band boundaries for each metric are:
+The band boundaries for each metric are reproduced below for convenience. They are defined in the [FAIRBench Metrics Specification](FAIRBench_Metrics_Specification.md), which is the single normative source; if this table ever disagrees with it, the specification is correct.
+
 
 | Metric | Pass | Watch | Flag | Fail |
 |---|---|---|---|---|
