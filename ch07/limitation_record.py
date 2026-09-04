@@ -23,6 +23,7 @@ found it under-specified, and this module is the hardened form:
 
 from __future__ import annotations
 
+import warnings
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -78,42 +79,54 @@ class ComparabilityBounds(BaseModel):
     comparable_across_runs_if: list[str] = Field(default_factory=list)
 
 
-class MetricLimitationRecord(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+# ``construct`` is the field name the chapter prints, and the YAML records in a
+# scorecard use it, so the schema keeps it. Pydantic warns that it shadows
+# ``BaseModel.construct``, a deprecated classmethod this schema never calls; the
+# warning is suppressed for this one class definition rather than globally, so a
+# reader running the validator sees its output and nothing else.
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=r'Field name "construct" .* shadows an attribute in parent "BaseModel"',
+        category=UserWarning,
+    )
 
-    metric: str
-    # Positive construct (#91):
-    construct: str
-    formula: str
-    aggregation: str
-    sample_size: int
-    value: float
-    confidence_interval: tuple[float, float] | None = None
-    # Error propagation / suppression (#92):
-    classifier: str | None = None
-    classifier_accuracy: float | None = None
-    suppressed: bool = False              # insufficient_measurement_validity
-    # Structured coverage (#95):
-    human_review_coverage: HumanReviewCoverage | None = None
-    # Cross-run comparability (#90):
-    comparability_bounds: ComparabilityBounds | None = None
-    # Limitations as explicit, severity-graded deviations (#96):
-    limitations: list[Limitation] = Field(default_factory=list)
-    # Audit metadata (#90):
-    owner: str
-    tracking_id: str
-    version: str
-    amendment_log: list[str] = Field(default_factory=list)
+    class MetricLimitationRecord(BaseModel):
+        model_config = ConfigDict(extra="forbid")
 
-    @model_validator(mode="after")
-    def _suppression_rule(self) -> "MetricLimitationRecord":
-        blocking = any(limit.severity == Severity.INFERENCE_BLOCKING for limit in self.limitations)
-        if blocking and not self.suppressed:
-            raise ValueError(
-                f"{self.metric}: an inference_blocking limitation requires suppressed=true "
-                "(insufficient_measurement_validity) — the metric may not be published as a point estimate"
-            )
-        return self
+        metric: str
+        # Positive construct (#91):
+        construct: str
+        formula: str
+        aggregation: str
+        sample_size: int
+        value: float
+        confidence_interval: tuple[float, float] | None = None
+        # Error propagation / suppression (#92):
+        classifier: str | None = None
+        classifier_accuracy: float | None = None
+        suppressed: bool = False              # insufficient_measurement_validity
+        # Structured coverage (#95):
+        human_review_coverage: HumanReviewCoverage | None = None
+        # Cross-run comparability (#90):
+        comparability_bounds: ComparabilityBounds | None = None
+        # Limitations as explicit, severity-graded deviations (#96):
+        limitations: list[Limitation] = Field(default_factory=list)
+        # Audit metadata (#90):
+        owner: str
+        tracking_id: str
+        version: str
+        amendment_log: list[str] = Field(default_factory=list)
+
+        @model_validator(mode="after")
+        def _suppression_rule(self) -> "MetricLimitationRecord":
+            blocking = any(limit.severity == Severity.INFERENCE_BLOCKING for limit in self.limitations)
+            if blocking and not self.suppressed:
+                raise ValueError(
+                    f"{self.metric}: an inference_blocking limitation requires suppressed=true "
+                    "(insufficient_measurement_validity) — the metric may not be published as a point estimate"
+                )
+            return self
 
 
 class ScorecardLimitations(BaseModel):
