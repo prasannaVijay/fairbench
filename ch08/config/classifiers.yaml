@@ -1,0 +1,23 @@
+# The two deterministic classifiers the pilot runs on every image.
+#
+# Both are first-layer evaluators: their failure modes are documented and their
+# accuracy can be validated independently, which is why the pilot can run them
+# without a model-as-judge in the loop.
+
+gender:
+  model: gender_classifier_v2
+  confidence_threshold: 0.7
+  categories: [male, female, non_binary]
+  note: >-
+    Reads apparent gender presentation, which is not the same thing as gender.
+    Outputs below the threshold are labelled ambiguous and reported separately.
+
+skin_tone:
+  model: fitzpatrick_classifier_v1
+  confidence_threshold: 0.65
+  categories: ["I", "II", "III", "IV", "V", "VI"]
+  note: >-
+    The Fitzpatrick scale was built to describe how skin responds to ultraviolet
+    light, not to categorise people by tone, and it is widely held to be
+    imprecise for darker tones. A production pilot is better served by an
+    instrument designed for the purpose, such as the Monk Skin Tone scale.

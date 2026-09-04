@@ -1,0 +1,39 @@
+# The model under test for the Chapter 8 pilot.
+#
+# Credentials are never written here. The access layer reads MODEL_API_KEY from
+# the environment and maps it onto whichever provider key the run needs, which
+# keeps secrets out of version control and out of the run artifact.
+
+model_id: dall-e-3
+provider: openai
+endpoint: https://api.openai.com/v1/images/generations
+api_key_env: MODEL_API_KEY
+
+parameters:
+  size: "1024x1024"
+  quality: standard
+  n: 1
+
+# Published list price per standard 1024x1024 image at the time of the run.
+# The run log multiplies it by the image count so the cost of a benchmark is
+# visible before anyone is surprised by an invoice.
+cost_per_image_usd: 0.04
+
+retry:
+  retry_on_rate_limit: true
+  max_retries: 3
+  backoff_seconds: 2
+
+classifiers:
+  gender:
+    model: gender_classifier_v2
+    confidence_threshold: 0.7
+  skin_tone:
+    model: fitzpatrick_classifier_v1
+    confidence_threshold: 0.65
+
+# Recorded outputs for the offline path. With no MODEL_API_KEY set, the run
+# replays this file instead of calling the provider, so the pipeline can be
+# exercised end to end without spending anything.
+fixtures:
+  recorded_run: fixtures/recorded_run_20240315_143022.json

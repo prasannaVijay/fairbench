@@ -1,0 +1,13 @@
+# Pinned dependencies for the Chapter 8 pilot.
+#
+#     pip install -r requirements.txt
+#
+# The offline path - replaying the recorded fixtures - needs only these. There
+# is deliberately no torch or transformers here: the classifier stubs read
+# recorded scores and apply their own thresholds, so the whole chapter runs on
+# a laptop with no GPU, no API key, and no network.
+httpx==0.27.2
+numpy==1.26.4
+scipy==1.11.4
+PyYAML==6.0.2
+Pillow==10.4.0

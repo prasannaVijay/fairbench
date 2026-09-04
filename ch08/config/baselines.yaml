@@ -1,0 +1,20 @@
+# Real-world baselines for the Stereotype Amplification Ratio.
+#
+# SAR divides a model's association rate by a baseline rate, so the baseline is
+# the whole argument. It lives here, with its provenance beside it, rather than
+# inside the metric, because a SAR quoted without its baseline is not a number
+# anyone can check.
+
+gender:
+  association_category: male
+  baseline_rate: 0.594
+  source: >-
+    Pilot placeholder. This is the male-presenting share the pilot team agreed
+    to score against for this run; it is NOT drawn from a published
+    participation statistic. Any SAR computed from it is comparable only to
+    other runs using the same figure. Replace it with a cited source, and record
+    the citation here, before publishing a SAR outside the team.
+  rationale: >-
+    SAR asks whether the model amplifies an association beyond what the
+    evidence warrants, so the baseline has to describe the depicted population
+    the team considers accurate rather than an aspirational target.
