@@ -1,0 +1,51 @@
+# Measurement-quality targets for the fairness benchmarking system itself.
+#
+# Book: Chapter 10, "Measurement quality metrics". This file carries the block
+# as the chapter prints it. The three metrics describe how much confidence we
+# should place in a given metric reading, independent of the value itself, and
+# they are the part of the observability layer with no close analog in ordinary
+# service monitoring.
+#
+# The replicate-stability target of 0.02 is deliberately set at roughly the
+# regression tolerance used in Chapter 9's alert design. A noise floor larger
+# than the tolerance we fire alerts on produces false positives at a rate that
+# erodes trust in the alerting layer, and an alerting layer nobody trusts is
+# worse than none. The power target of 0.80 is the conventional lower bound in
+# experimental design and applies to any scenario feeding a gate decision:
+# below it, a scenario can tell us something might have moved and cannot tell us
+# with reasonable confidence whether the movement is real.
+#
+# On the inter-rater statistic: Cohen's kappa is the right choice for a straight
+# two-version comparison of nominal labels. Comparing more than two classifier
+# versions calls for Fleiss' kappa or Krippendorff's alpha, and a classifier
+# returning ordinal ratings rather than nominal labels calls for weighted kappa,
+# or the intraclass correlation coefficient where the output is a continuous
+# confidence score.
+
+measurement_quality_metrics:
+  replicate_stability:
+    description: >
+      Standard deviation of a given metric across N independent replicate runs
+      of the same scenario, same model version, same classifier version,
+      measured on a regular cadence.
+    target: <0.02 for RSI on soccer_pilot_v1
+    frequency: monthly
+    action_on_violation: "Flag for noise-floor recalibration"
+
+  sample_size_power:
+    description: >
+      Statistical power to detect a 0.05 effect size at alpha=0.05 given the
+      number of prompts and replicates in the scenario.
+    target: ">0.80"
+    frequency: per_scenario_design_review
+    action_on_violation: "Expand prompt set or replicate count"
+
+  classifier_inter_rater:
+    description: >
+      Cohen's kappa between two classifier versions on a shared evaluation set,
+      measured whenever a classifier version changes.
+    target: ">0.80"
+    frequency: per_classifier_version_change
+    action_on_violation: >
+      Pause automated comparison across the version boundary;
+      human review required

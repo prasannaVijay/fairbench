@@ -1,0 +1,50 @@
+# Measurement-quality report after remediation, for the same scenario.
+#
+# ILLUSTRATIVE. Unlike measurement_quality_w14.yaml, the values here are not
+# computed from traces in this repository; there is no fixture for the expanded
+# scenario they describe. The file exists so that a reader can see the evaluator
+# report a clean pass as well as a breach, and so that the remediation path the
+# actions prescribe has a visible endpoint.
+#
+# The story it continues: the w14 report breached two targets. The noise floor
+# came back above the 0.02 regression tolerance, and the kappa across the
+# v3.1-to-v3.2 classifier boundary came back at 0.55, well under the 0.80 the
+# block requires before automated comparison across that boundary is trusted.
+# The prescribed actions were taken. The replicate count per prompt was raised
+# from 12 to 40 and the prompt set from 20 to 64, which is what moved the noise
+# floor under the tolerance. The v3.2 classifier was re-tuned on the padded-kit
+# goalkeeper frames it had become unsure of and shipped as v3.4, and the kappa
+# below is measured across the v3.1-to-v3.4 boundary on the same cached outputs.
+#
+# Note what the pass does and does not license. All three targets are met, so
+# comparisons across this classifier boundary can run automatically again and
+# the scenario is adequately powered for a gate decision. None of that says the
+# fairness reading itself is good, only that we can believe the reading.
+
+report_id: mq_soccer_2026_w26_post_remediation
+scenario: soccer_pilot_v1
+metric: RSI_gender
+runs:
+  prior: soccer_2026_w25
+  current: soccer_2026_w26
+
+observed:
+  replicate_stability: 0.0140
+  sample_size_power: 0.8600
+  classifier_inter_rater: 0.9100
+
+provenance:
+  replicate_stability: >
+    Standard deviation of RSI_gender across six independent replicate runs of
+    soccer_pilot_v1, same model version and same classifier version, run on
+    consecutive days. This is the measurement the target is written against
+    rather than a within-run approximation to it.
+  sample_size_power: >
+    Paired power to detect a 0.05 effect at alpha=0.05, computed at the
+    scenario design review from the per-prompt spread observed across the six
+    replicate runs above, with 64 prompts and 40 replicates each.
+  classifier_inter_rater: >
+    Cohen's kappa between person_attributes v3.1 and v3.4 over the 2,560
+    cached outputs of soccer_2026_w25. Nominal labels and two versions, so
+    Cohen's kappa is the appropriate statistic; a comparison spanning more
+    than two versions would call for Fleiss' kappa or Krippendorff's alpha.
