@@ -31,7 +31,10 @@ def main(argv: list[str]) -> int:
     for p in paths:
         try:
             s = load_scenario(p)
-            print(f"OK    {p}  (id={s.id}, domain={s.domain}, harm_type={s.harm_type})")
+            # Printed to match the transcript in Chapter 6: the bare file name and
+            # the two fields the book shows. The full path is already on the command
+            # line, so repeating it here only pushed the interesting fields off the page.
+            print(f"OK    {Path(p).name:<28}(id={s.id}, harm_type={s.harm_type})")
         except Exception as e:  # noqa: BLE001 - report any validation error clearly
             failures += 1
             print(f"FAIL  {p}\n      {type(e).__name__}: {e}")

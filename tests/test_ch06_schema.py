@@ -8,7 +8,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ch06"))
 from scenario_schema import Scenario, json_schema, load_scenario  # noqa: E402
 
-EXAMPLES = sorted((Path(__file__).resolve().parent.parent / "ch06" / "examples").glob("*.yaml"))
+CH06 = Path(__file__).resolve().parent.parent / "ch06"
+# Chapter 6 prints the transcript of the `examples/*.yaml` glob and closes it on
+# "3/3 valid", so `examples/` holds exactly the three files the page lists and the
+# healthcare template sits in `templates/`. Both directories are validated here.
+EXAMPLES = sorted(CH06.joinpath("examples").glob("*.yaml")) + sorted(
+    CH06.joinpath("templates").glob("*.yaml")
+)
 
 
 @pytest.mark.parametrize("path", EXAMPLES, ids=lambda p: p.name)
