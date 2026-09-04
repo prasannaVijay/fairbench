@@ -17,6 +17,28 @@ Chapter 5 hardening and this map. Everything here is runnable from a clone.
 | Human review and annotation | `src/fairbench_genai/evaluation/triage.py` (routing / triage) |
 | Security, logging, and audit trails | `src/fairbench_genai/core/audit.py` (HMAC-linked, sequence-numbered, `verify_chain()`) |
 | Offline soccer demo (no API key) | `examples/soccer_stub_benchmark.py` + `src/fairbench_genai/adapters/image/stub.py`, `evaluation/image/stub.py` |
+| Chapter 5 quickstart command | `ch05/soccer_stub_benchmark.py` (thin wrapper over the example above, so the printed path resolves here too) |
+
+## Which repository Chapter 5's quickstart clones
+
+Chapter 5 prints its quickstart against the companion repository,
+`https://github.com/prasannaVijay/fairbench-book`, on its own `ch05` branch:
+that repository carries a root `requirements.txt` and holds the demo at
+`ch05/soccer_stub_benchmark.py`. The Preface points at this repository instead,
+with one `chXX` branch per chapter, so both paths need to work.
+
+They do. Here the demo lives at `examples/soccer_stub_benchmark.py` and
+`ch05/soccer_stub_benchmark.py` is a wrapper around it, so the command the book
+prints runs in either clone. The install differs, because this repository is a
+`pyproject.toml` project rather than a `requirements.txt` one:
+
+```bash
+# in this repository (the Preface's path)
+git clone -b ch05 https://github.com/prasannaVijay/fairbench && cd fairbench
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python ch05/soccer_stub_benchmark.py     # or examples/soccer_stub_benchmark.py
+```
 
 ## Run configuration (hardened)
 
