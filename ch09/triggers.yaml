@@ -1,0 +1,85 @@
+# Chapter 9 — "When to run: the trigger architecture"
+#
+# The three trigger families the chapter prints, in one file. Each block is
+# reproduced with the fields and values shown in the book; nothing has been
+# added to the printed listings except this header and the comments that were
+# already inline in the text.
+#
+# A trigger answers three questions for every evaluation pipeline: what event
+# initiates a run, what scope of evaluation that run covers, and what happens
+# if the run does not complete. The `trigger_type` values map onto the two
+# scopes the chapter defines (`full_benchmark`, `targeted_benchmark`) plus the
+# cheapest tier, `metric_recalculation`, which recomputes from stored outputs.
+#
+# The chapter also names a fourth family, evaluation-side changes (a new
+# classifier version, a change to the metric-computation code, a revised
+# threshold). Those are wired up in `evaluation_triggers` below, which is the
+# repository's part of the taxonomy rather than a printed listing.
+#
+# Validated by: tests/test_ch09_gates.py
+# Consumed by:  fairbench/run.py (the --trigger argument is checked against the
+#               event names declared here).
+
+model_triggers:
+  - event: model_version_change
+    tier: standard  # Options: sanity | standard | extended
+    trigger_type: full_benchmark
+    scenario: soccer_pilot_v1
+    on_failure:
+      action: block_pipeline
+      retry_count: 2
+    notify: [fairness-team@org.com, ml-governance@org.com]
+
+  - event: inference_config_change
+    trigger_type: targeted_benchmark
+    metrics: [RSI, ODE]
+    scenario: soccer_pilot_v1
+    notify: [fairness-team@org.com]
+
+  - event: provider_api_version_change
+    trigger_type: full_benchmark
+    scenario: soccer_pilot_v1
+    notify: [fairness-team@org.com, ml-governance@org.com]
+
+data_triggers:
+  - event: prompt_library_update
+    trigger_type: full_benchmark
+    scenario: soccer_pilot_v1
+    recalculate_from_cache: false
+
+  - event: reference_distribution_update
+    trigger_type: metric_recalculation
+    scenario: soccer_pilot_v1
+    recalculate_from_cache: true
+    note: "Recompute metrics from stored outputs - no new image generation"
+
+schedule_triggers:
+  - cron: "0 6 * * 1"  # Every Monday at 06:00 UTC
+    trigger_type: full_benchmark
+    scenario: soccer_pilot_v1
+    label: weekly_regression_sweep
+
+# Not printed in the chapter. The text names evaluation-side changes as a
+# fourth family and says the repository is where they get wired up, so they are
+# recorded here to keep the taxonomy (model, data, evaluation, scheduled)
+# complete. All three recompute from cached outputs, which makes them the
+# cheapest tier: nothing about the model or the prompts has moved, so there is
+# no generation cost to pay again.
+evaluation_triggers:
+  - event: classifier_version_change
+    trigger_type: metric_recalculation
+    scenario: soccer_pilot_v1
+    recalculate_from_cache: true
+    notify: [fairness-team@org.com]
+
+  - event: metric_code_change
+    trigger_type: metric_recalculation
+    scenario: soccer_pilot_v1
+    recalculate_from_cache: true
+    notify: [fairness-team@org.com]
+
+  - event: gate_threshold_change
+    trigger_type: metric_recalculation
+    scenario: soccer_pilot_v1
+    recalculate_from_cache: true
+    notify: [fairness-team@org.com, ml-governance@org.com]

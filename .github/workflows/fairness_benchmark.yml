@@ -1,0 +1,67 @@
+# Fairness Benchmark - the installable copy of the Chapter 9 workflow.
+#
+# This is the file GitHub actually reads. It is identical to the canonical copy
+# at ch09/.github/workflows/fairness_benchmark.yml, including the corrected `on:`
+# block with all four triggers nested one level under it, except for the
+# job-level `if:` guard below.
+#
+# WHY THE GUARD
+# -------------
+# Two reasons, and the second is the substantive one.
+#
+# First, this repository is the book's code repository rather than a model
+# deployment pipeline, so a weekly sweep and a push-path trigger firing here
+# would spend CI minutes on runs nobody reads.
+#
+# Second, and this is the part worth carrying forward into a real pipeline: the
+# benchmark step reads `inputs.trigger_type`, `inputs.scenario_id` and
+# `inputs.model_version`, and those inputs exist only on a workflow_dispatch
+# event. On a push, a schedule or a repository_dispatch they resolve to empty
+# strings, and the command runs with no scenario and no model version, which is
+# precisely the unattributable result the chapter argues against. Restricting
+# execution to workflow_dispatch keeps all four triggers visible and parseable
+# while running the job only on the event whose inputs the printed command reads.
+#
+# To wire this up for real, delete the `if:` line and add a step ahead of the
+# benchmark that resolves the three parameters per event: the scenario and model
+# version from `github.event.client_payload` on a repository_dispatch, and from
+# the model registry on a push or a schedule.
+
+name: Fairness Benchmark
+
+on:
+  push:
+    paths: ['scenarios/**', 'prompts/**']       # prompt / config changes
+  schedule:
+    - cron: "0 6 * * 1"                         # weekly regression sweep (UTC)
+  repository_dispatch:
+    types: [model_version_updated]              # fired by the model registry
+  workflow_dispatch:
+    inputs:
+      trigger_type:
+        required: true
+        type: string
+      scenario_id:
+        required: true
+        type: string
+      model_version:                            # registry URI, not a commit SHA
+        required: true
+        type: string
+
+jobs:
+  run_benchmark:
+    runs-on: ubuntu-latest
+    # Remove this line in a real model pipeline; see the note at the top.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run fairness benchmark
+        run: |
+          python -m fairbench.run \
+            --trigger ${{ inputs.trigger_type }} \
+            --scenario ${{ inputs.scenario_id }} \
+            --model-version ${{ inputs.model_version }}

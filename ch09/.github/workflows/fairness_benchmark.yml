@@ -1,0 +1,60 @@
+# Chapter 9 - "Wiring triggers to CI"
+#
+# This is the canonical copy of the workflow the chapter prints, kept beside the
+# rest of the Chapter 9 code so it can be read next to ch09/triggers.yaml. It is
+# not in a path GitHub reads, so nothing here runs on its own; the installed copy
+# lives at .github/workflows/fairness_benchmark.yml and differs from this file by
+# a single job-level `if:` guard, explained there and in ch09/CHAPTER_MAP.md.
+#
+# CORRECTION TO THE PRINTED LISTING
+# ---------------------------------
+# The workflow as typeset in the book does not parse into anything that runs.
+# `push:` and `repository_dispatch:` sit at the same indentation as `on:` rather
+# than under it, `schedule:` is nested inside `push:`, and `workflow_dispatch:`
+# is nested inside `repository_dispatch:`. The result is an empty `on:` block and
+# a workflow that never fires on any event. All four trigger blocks are nested
+# one level under `on:` here, which is the only change; every other detail of the
+# printed listing (the paths filter, the weekly cron, the dispatch type, the
+# three required inputs, the action versions, the pip step and the benchmark
+# command) is reproduced as written.
+#
+# The four triggers map onto ch09/triggers.yaml: push covers the data triggers,
+# schedule the weekly regression sweep, repository_dispatch the model triggers
+# fired by the registry, and workflow_dispatch a manual run.
+
+name: Fairness Benchmark
+
+on:
+  push:
+    paths: ['scenarios/**', 'prompts/**']       # prompt / config changes
+  schedule:
+    - cron: "0 6 * * 1"                         # weekly regression sweep (UTC)
+  repository_dispatch:
+    types: [model_version_updated]              # fired by the model registry
+  workflow_dispatch:
+    inputs:
+      trigger_type:
+        required: true
+        type: string
+      scenario_id:
+        required: true
+        type: string
+      model_version:                            # registry URI, not a commit SHA
+        required: true
+        type: string
+
+jobs:
+  run_benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run fairness benchmark
+        run: |
+          python -m fairbench.run \
+            --trigger ${{ inputs.trigger_type }} \
+            --scenario ${{ inputs.scenario_id }} \
+            --model-version ${{ inputs.model_version }}

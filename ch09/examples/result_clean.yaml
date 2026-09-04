@@ -1,0 +1,19 @@
+# A run that clears every gate: the remediated model the exception in
+# ch09/exception_log.yaml was granted to buy time for.
+#
+#   python ch09/gate_evaluator.py ch09/examples/result_clean.yaml
+run_id: soccer_pilot_v1_20260820_060000
+model_id: soccer-gen
+model_version: "models:/soccer-gen/1.4"
+scenario_id: soccer_pilot_v1
+trigger_type: full_benchmark
+metrics:
+  RSI_gender: 0.12
+  RSI_skin_tone: 0.14
+  ODE_gender: 0.78
+  ODE_skin_tone: 0.74
+  CDS_gender: 0.17
+  CDS_skin_tone: 0.15
+  SAR_gender: 1.06
+  HSI: 0.02
+  DSI: 0.05

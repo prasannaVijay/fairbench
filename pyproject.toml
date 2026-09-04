@@ -82,3 +82,9 @@ strict = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    # Chapter 9: tests that run the full offline benchmark loop. They need no
+    # API key, but they generate the whole scenario library, so they take a few
+    # seconds. Deselect with: pytest -m "not slow"
+    "slow: exercises the full offline benchmark pipeline",
+]

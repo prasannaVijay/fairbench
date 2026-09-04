@@ -1,0 +1,28 @@
+# requirements.txt
+#
+# Generated from the [project].dependencies table in pyproject.toml. Do not edit
+# by hand: run `python ch09/tools/sync_requirements.py` instead, and
+# `python ch09/tools/sync_requirements.py --check` to verify the two are in step
+# (tests/test_ch09_gates.py runs that check).
+#
+# The Chapter 9 CI workflow installs from this file, which is why it exists at
+# the repository root. It mirrors the dependency list rather than forking it, so
+# pyproject.toml stays the one place a dependency is declared.
+
+pydantic>=2.0
+pyyaml>=6.0
+httpx>=0.27
+anthropic>=0.40
+openai>=1.50
+numpy>=1.24
+scipy>=1.11
+sentence-transformers>=3.0
+transformers>=4.40
+torch>=2.0
+aiosqlite>=0.20
+typer>=0.12
+rich>=13.0
+
+# The library itself, installed from the checkout, so that `python -m fairbench.run`
+# can import fairbench_genai after actions/checkout.
+-e .

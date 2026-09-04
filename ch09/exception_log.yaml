@@ -1,0 +1,38 @@
+# Chapter 9 — "The exception process"
+#
+# The filled exception example the chapter prints. It records the governance
+# decision taken on the Chapter 8 pilot result: RSI_gender came back at 0.31
+# against a soft threshold of 0.20, the gate escalated, and the ML Governance
+# Lead approved deployment for internal beta with a two-month expiry.
+#
+# Three fields carry the accountability: approved_by names a person, not a
+# team; justification states what the flag means and why deployment is still
+# appropriate; expires_at is enforced by ch09/exception_record.py, so once the
+# date passes the gate fires again as though the exception had never existed.
+#
+# Validated by: ch09/exception_record.py (also rejects any exception whose
+# gate_type is hard).
+
+exception_log:
+  exception_id: exc_soccer_v1.3_RSI_2026_06
+  run_id: soccer_pilot_v1_20260625_083022
+  metric: RSI_gender
+  gate_type: soft  # the evaluator rejects an exception log for any hard gate
+  metric_value: 0.31
+  threshold: 0.20
+
+  approved_by: 'Dr. R. Venkataraman, ML Governance Lead'
+  approved_at: '2026-06-26T10:30:00Z'
+  expires_at: '2026-08-26T00:00:00Z'
+
+  justification: |
+    RSI_gender breach of 0.31 acknowledged. Root cause: training
+    data skew in the new dataset batch. Remediation underway:
+    dataset rebalancing scheduled for v1.4 training run.
+    Approved for internal beta only; mandatory re-evaluation
+    before any broader rollout.
+
+  conditions:
+    - 'Internal beta release only - no public-facing deployment'
+    - 'Re-evaluation mandatory before v1.4 public release'
+    - 'Exception lapses 2026-08-26 regardless of v1.4 status'
