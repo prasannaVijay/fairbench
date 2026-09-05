@@ -2,8 +2,16 @@
 
 The package lives under ``src/`` and the per-chapter code lives in top-level
 chapter directories whose modules import each other by bare name, exactly as the
-book's listings do. Both go on ``sys.path`` here so that ``python -m pytest``
-works from a clean checkout without an editable install.
+book's listings do. The package directory and the chapter directories go on
+``sys.path`` here so that the suite runs from a clean checkout without an
+editable install.
+
+Each entry is added explicitly rather than left to pytest. Under the ``prepend``
+import mode pytest inserts the repository root for us, and under ``importlib``
+it does not touch ``sys.path`` at all, so a suite that relies on that insertion
+passes or fails depending on which mode the reader's pytest happens to default
+to. Chapter 9's ``fairbench`` shim is reached the same way, by the insertion its
+own test module makes, which keeps that name off the path for every other test.
 """
 
 from __future__ import annotations

@@ -109,16 +109,37 @@ dispatch, and from the model registry on a push or a schedule.
 
 **How `fairbench.run` relates to `fairbench_genai`.** The installable library is
 `fairbench_genai`; the name `fairbench` was already taken on PyPI. The chapter
-prints `python -m fairbench.run`, so `fairbench/` exists at the repository root
-to make that command real. It is deliberately not an alias: it contains no
-metric code, no adapters and no scenario handling, and every number it reports
-is computed by `fairbench_genai`. What it adds is the layer this chapter is
-about and the library does not have: trigger validation, model-version
-attribution, gate evaluation, and a process exit code a CI job can act on. It
-lives at the repository root rather than under `src/`, so it is not part of the
-`fairbench-genai` distribution: installing the library gives you the library,
-and checking out this repository gives you the workflow around it, which is
-exactly the state a CI job is in after `actions/checkout`.
+prints `python -m fairbench.run`, so `ch09/fairbench/` exists to make that
+command real. It is deliberately not an alias: it contains no metric code, no
+adapters and no scenario handling, and every number it reports is computed by
+`fairbench_genai`. What it adds is the layer this chapter is about and the
+library does not have: trigger validation, model-version attribution, gate
+evaluation, and a process exit code a CI job can act on.
+
+```bash
+cd ch09 && python -m fairbench.run \
+  --trigger model_version_change \
+  --scenario soccer_pilot_v1 \
+  --model-version models:/soccer-gen/1.3
+```
+
+**Why it sits under `ch09/` and not at the repository root.** The collaborating
+project at `github.com/mever-team/FairBench` publishes a package under this same
+name, and the integration work between the two projects has `fairbench-genai`
+depending on it. A `fairbench/` directory at the repository root would shadow
+that package for anyone working from a checkout, silently, which is a poor trade
+for saving a `cd`. Keeping the shim under `ch09/` means it is importable while a
+reader is running this chapter's code and invisible the rest of the time. It is
+also outside `src/`, so it is not part of the `fairbench-genai` distribution:
+installing the library gives you the library, and checking out this repository
+gives you the workflow around it.
+
+That placement is the one deviation between the two copies of the workflow. The
+canonical copy under `ch09/.github/workflows/` keeps the printed benchmark step
+exactly as the book gives it, since a reader vendoring the workflow into their
+own repository will put the shim wherever their checkout can import it. The
+installed copy at `.github/workflows/` adds `working-directory: ch09`, because
+that is where it lives here.
 
 `--model-version` is required, and a bare 40-character commit SHA is rejected
 with an explanation, because the chapter reserves `github.sha` for pipeline-code

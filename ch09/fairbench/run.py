@@ -63,8 +63,9 @@ from typing import Any
 
 import yaml
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_CH09 = _REPO_ROOT / "ch09"
+# The shim sits at ch09/fairbench/, so its own directory's parent is ch09/.
+_CH09 = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _CH09.parent
 sys.path.insert(0, str(_CH09))
 
 DEFAULT_TRIGGERS_PATH = _CH09 / "triggers.yaml"

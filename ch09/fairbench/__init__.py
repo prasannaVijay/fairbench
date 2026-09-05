@@ -17,11 +17,14 @@ be worse than no shim at all:
   validation, model-version attribution, gate evaluation, and a process exit
   code a CI job can act on. That layer is genuinely a deployment concern rather
   than a measurement one, which is why it sits outside the library.
-- It lives at the repository root instead of under ``src/``, so it is not part
-  of the ``fairbench-genai`` distribution. Installing the library gives you the
-  library; checking out this repository gives you the workflow around it. A CI
-  job that has run ``actions/checkout`` can call ``python -m fairbench.run``
-  from the checkout directory, which is exactly what the printed workflow does.
+- It lives under ``ch09/`` instead of at the repository root or under ``src/``,
+  so it is not part of the ``fairbench-genai`` distribution and it does not sit
+  on the import path of a plain checkout. That placement is deliberate. The
+  collaborating project at ``github.com/mever-team/FairBench`` publishes a
+  package under this same name, and a ``fairbench/`` directory at the repository
+  root would shadow it for anyone working from a checkout. Confining the shim to
+  ``ch09/`` means it is importable when a reader is running Chapter 9's code and
+  invisible the rest of the time. Run it as ``cd ch09 && python -m fairbench.run``.
 
 If you want the library's own interface, use ``fairbench_genai`` (or its
 ``fairbench`` console script, installed from ``pyproject.toml``) directly.

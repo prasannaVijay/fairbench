@@ -17,6 +17,7 @@ Everything here runs offline with no API key.
 from __future__ import annotations
 
 import sqlite3
+import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -122,14 +123,38 @@ def test_workflow_keeps_every_printed_detail(path: Path) -> None:
     assert "--model-version ${{ inputs.model_version }}" in command
 
 
-def test_installed_workflow_is_guarded_but_canonical_copy_is_not() -> None:
-    """The only difference between the two copies is the execution guard."""
+def test_installed_workflow_differs_from_the_canonical_copy_in_exactly_two_ways() -> None:
+    """The canonical copy is the printed listing; the installed copy is what runs here.
+
+    Two differences, both deliberate. The installed copy carries an execution
+    guard, because the printed benchmark step reads ``inputs.*``, which exist
+    only on a dispatch event. And it runs the benchmark step from ``ch09/``,
+    because that is where the shim lives in this repository; a reader vendoring
+    the workflow into their own repository puts the shim wherever their checkout
+    can import it, so the canonical copy stays free of a path that is ours.
+    """
     installed = _load_yaml(INSTALLED_WORKFLOW)["jobs"]["run_benchmark"]
     canonical = _load_yaml(CANONICAL_WORKFLOW)["jobs"]["run_benchmark"]
 
     assert installed["if"] == "github.event_name == 'workflow_dispatch'"
     assert "if" not in canonical
-    assert installed["steps"] == canonical["steps"]
+
+    def _benchmark_step(job: dict) -> dict:
+        (step,) = [s for s in job["steps"] if s.get("name") == "Run fairness benchmark"]
+        return step
+
+    installed_step = _benchmark_step(installed)
+    canonical_step = _benchmark_step(canonical)
+
+    assert installed_step["working-directory"] == "ch09"
+    assert "working-directory" not in canonical_step
+    assert installed_step["run"] == canonical_step["run"]
+
+    # Every other step is identical.
+    strip = lambda steps: [  # noqa: E731
+        {k: v for k, v in s.items() if k != "working-directory"} for s in steps
+    ]
+    assert strip(installed["steps"]) == strip(canonical["steps"])
 
 
 def test_requirements_file_exists_and_matches_pyproject() -> None:
@@ -531,9 +556,17 @@ def test_schema_refuses_a_hard_gate_exception_row() -> None:
 
 
 def _run_module(*args: str) -> subprocess.CompletedProcess:
+    # PYTHONPATH is set explicitly rather than relying on ``python -m`` to
+    # prepend the working directory, because an isolated interpreter or
+    # PYTHONSAFEPATH suppresses that prepend and the shim then goes missing.
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(CH09), str(REPO_ROOT / "src"), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
     return subprocess.run(
         [sys.executable, "-m", "fairbench.run", *args],
-        cwd=REPO_ROOT,
+        cwd=CH09,
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -586,7 +619,7 @@ def test_shim_delegates_measurement_to_the_library() -> None:
 
     assert fairbench.LIBRARY_PACKAGE == "fairbench_genai"
 
-    source = (REPO_ROOT / "fairbench" / "run.py").read_text(encoding="utf-8")
+    source = (CH09 / "fairbench" / "run.py").read_text(encoding="utf-8")
     assert "fairbench_genai" in source
 
 

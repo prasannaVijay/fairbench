@@ -60,6 +60,9 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - name: Run fairness benchmark
+        # The shim lives in ch09/ so that its package name does not shadow the
+        # mever-team FairBench package for anyone working from a checkout.
+        working-directory: ch09
         run: |
           python -m fairbench.run \
             --trigger ${{ inputs.trigger_type }} \
