@@ -1,7 +1,9 @@
 """Tests for fairness metrics."""
 
-import pytest
+import math
 from uuid import uuid4
+
+import pytest
 
 from fairbench_genai.core.types import (
     Distribution,
@@ -141,8 +143,51 @@ class TestRSI:
         result = rsi.compute(outputs, baseline)
 
         # A 75/25 split is a mild skew: the JSD-based RSI is small but strictly
-        # positive (~0.034), and well above the 0.0 a balanced split produces.
+        # positive (~0.049 in log base 2), and well above the 0.0 a balanced
+        # split produces.
         assert 0.0 < result.value < 0.1  # Should show skew
+
+    def test_disjoint_distributions_reach_the_bound(self) -> None:
+        """RSI is reported in log base 2, so disjoint distributions score 1.0."""
+        outputs = [
+            make_output("A", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
+            make_output("B", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
+        ]
+
+        rsi = RepresentationSkewIndex()
+        baseline = Distribution({"male": 0.0, "female": 1.0})
+        result = rsi.compute(outputs, baseline)
+
+        assert result.value == pytest.approx(1.0, abs=1e-6)
+
+    def test_result_records_the_log_base(self) -> None:
+        """Scorecards must be able to tell which scale produced a value."""
+        outputs = [
+            make_output("A", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
+            make_output("B", "s1", is_cf=True, cf_attr="gender", cf_value="female"),
+        ]
+
+        rsi = RepresentationSkewIndex()
+        result = rsi.compute(outputs, Distribution({"male": 0.5, "female": 0.5}))
+
+        assert result.details["log_base"] == 2
+
+    def test_bands_are_derived_from_the_natural_log_thresholds(self) -> None:
+        """Rescaling the bands must leave every verdict unchanged."""
+        rsi = RepresentationSkewIndex()
+        ln2 = math.log(2)
+
+        for legacy_value, expected in (
+            (0.10, "Pass"),
+            (0.15, "Pass"),
+            (0.20, "Watch"),
+            (0.25, "Watch"),
+            (0.30, "Flag"),
+            (0.40, "Flag"),
+            (0.55, "Fail"),
+        ):
+            band = rsi.interpret_value(legacy_value / ln2).split(" - ")[0]
+            assert band == expected, f"{legacy_value} became {band}"
 
 
 class TestODE:
