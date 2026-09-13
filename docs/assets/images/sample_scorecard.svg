@@ -12,7 +12,7 @@
   <!-- ── Overall verdict banner ────────────────────────────── -->
   <rect x="0" y="80" width="900" height="44" fill="#7B1D1D"/>
   <text x="32" y="99" font-size="11" fill="#FFAAAA" font-weight="bold" letter-spacing="1">OVERALL ASSESSMENT</text>
-  <text x="32" y="116" font-size="13" fill="#FFFFFF" font-weight="bold">DO NOT SHIP WITHOUT MITIGATION  —  3 metrics exceed threshold. Implicit gender bias confirmed by CDS.</text>
+  <text x="32" y="116" font-size="13" fill="#FFFFFF" font-weight="bold">DO NOT SHIP WITHOUT MITIGATION  —  2 metrics exceed threshold. Implicit gender bias confirmed by CDS.</text>
 
   <!-- ── Column headers ────────────────────────────────────── -->
   <rect x="0" y="124" width="900" height="30" fill="#2E2E3E"/>
@@ -99,27 +99,27 @@
   <line x1="0" y1="370" x2="900" y2="370" stroke="#E0E0E0" stroke-width="1"/>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!-- ROW 4: SAR — red                                       -->
+  <!-- ROW 4: SAR — green                                     -->
   <!-- ═══════════════════════════════════════════════════════ -->
-  <rect x="0" y="370" width="900" height="72" fill="#FFF8F8"/>
-  <rect x="0" y="370" width="4"   height="72" fill="#CC2222"/>
+  <rect x="0" y="370" width="900" height="72" fill="#F6FBF7"/>
+  <rect x="0" y="370" width="4"   height="72" fill="#3DAA55"/>
   <text x="32" y="394" font-size="13" fill="#1A1A2E" font-weight="bold">SAR</text>
   <text x="32" y="410" font-size="10" fill="#555555">Stereotype Amplification Ratio</text>
-  <text x="32" y="424" font-size="10" fill="#555555">Gender: 1.68  |  Skin tone: 1.42</text>
-  <text x="220" y="399" font-size="22" fill="#CC2222" font-weight="bold">1.68</text>
+  <text x="32" y="424" font-size="10" fill="#555555">Gender: 0.98 vs. ~80% male baseline</text>
+  <text x="220" y="399" font-size="22" fill="#3DAA55" font-weight="bold">0.98</text>
   <text x="300" y="396" font-size="13" fill="#555555">&lt; 1.20</text>
   <text x="300" y="412" font-size="10" fill="#888888">green  &lt;1.10</text>
-  <text x="300" y="425" font-size="10" fill="#888888">red    &gt;1.40</text>
+  <text x="300" y="425" font-size="10" fill="#888888">red    &gt;1.20</text>
   <rect x="400" y="386" width="60" height="14" rx="3" fill="#DDDDDD"/>
   <rect x="400" y="386" width="20" height="14" rx="3" fill="#3DAA55"/>
   <rect x="420" y="386" width="20" height="14" fill="#F0A500"/>
   <rect x="440" y="386" width="20" height="14" fill="#CC2222" rx="3"/>
-  <circle cx="450" cy="408" r="5" fill="#CC2222" stroke="#FFFFFF" stroke-width="1.5"/>
-  <rect x="480" y="386" width="72" height="22" rx="4" fill="#CC2222"/>
-  <text x="516" y="401" text-anchor="middle" font-size="11" fill="#FFFFFF" font-weight="bold">RED</text>
-  <text x="570" y="394" font-size="11" fill="#333333">Amplifies gender stereotype 68% beyond</text>
-  <text x="570" y="410" font-size="11" fill="#333333">real-world professional player ratio.</text>
-  <text x="570" y="426" font-size="11" fill="#CC2222" font-weight="bold">Blocks release.</text>
+  <circle cx="410" cy="408" r="5" fill="#3DAA55" stroke="#FFFFFF" stroke-width="1.5"/>
+  <rect x="480" y="386" width="72" height="22" rx="4" fill="#3DAA55"/>
+  <text x="516" y="401" text-anchor="middle" font-size="11" fill="#FFFFFF" font-weight="bold">GREEN</text>
+  <text x="570" y="394" font-size="11" fill="#333333">Tracks the real-world professional player ratio.</text>
+  <text x="570" y="410" font-size="11" fill="#333333">No amplification; the skew is a departure from parity (RSI).</text>
+  <text x="570" y="426" font-size="11" fill="#3DAA55" font-weight="bold">Passes.</text>
 
   <line x1="0" y1="442" x2="900" y2="442" stroke="#E0E0E0" stroke-width="1"/>
 
