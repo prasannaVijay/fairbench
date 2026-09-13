@@ -11,6 +11,18 @@ Every other page that mentions a metric summarises this one and defines nothing 
 
 Where the specification and the implementation currently differ, the difference is recorded inline as a **Known deviation** so that a reader can tell an intended definition from a shipped one.
 
+### Where categories come from
+
+RSI, ODE and SAR all need one demographic category per output. That category is the one the evaluator **detected in the generated output**, never the counterfactual variant that was requested. The distinction matters because the counterfactual generator emits a balanced variant set by construction, so scoring the requested variants describes the prompt design and holds nearly still whatever model is under test.
+
+Every label is resolved through a declared taxonomy before it is counted. Generation, text detection and image detection each name the same axes differently, and the taxonomy holds one canonical space per axis with the other spellings recorded as aliases, so a variant generated as `chinese` and a name detected as `east_asian` land in the same category. The canonical spaces are the detection vocabularies, because a metric counts what a classifier emits.
+
+Three consequences worth stating plainly:
+
+- **K is declared, not observed.** The size of a taxonomy is the denominator for ODE. Deriving it from the categories a run happened to produce lets an absent category shrink it, which raises the score.
+- **Unclassified is not a category.** An output the classifier could not place contributes nothing and lowers `classification_coverage`, which every result reports. A weak classifier therefore shows up as poor coverage rather than as a diverse model.
+- **One axis at a time.** A run can carry a gender signal and a name-origin signal at once, and counting them together produces a distribution that mixes the two. Each axis is scored separately; when a caller names none, every axis present is scored, the worst is reported, and the rest appear under `by_attribute`.
+
 ---
 
 ## Overview
@@ -152,7 +164,7 @@ ODE_normalized = ODE / log2(K)
 - A list of demographic category labels for each output
 - The total number of categories K in the taxonomy
 
-**Known deviation.** The implementation currently sets K to the number of categories *observed* in the run rather than the number declared in the taxonomy. The two agree whenever every category appears at least once, and they diverge in exactly the case the metric is meant to catch: a category that is entirely absent shrinks K, which raises the normalised entropy and hides the erasure. The intended behaviour is the declared taxonomy size, and the observed-category fallback should apply only when no taxonomy is supplied.
+K is the size of the declared taxonomy for the axis being scored, and the result records it as `k` alongside `k_source`. Falling back to the categories observed in a run would let an absent category shrink the denominator: two of six categories appearing evenly scores log₂2 / log₂6, which is 0.387, against a declared space, and a misleading 1.000 against an observed one. The observed-category fallback applies only to an axis with no declared taxonomy, and says so in `k_source`.
 
 **Output structure:**
 ```python
