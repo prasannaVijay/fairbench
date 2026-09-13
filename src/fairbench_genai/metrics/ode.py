@@ -8,6 +8,12 @@ from scipy import stats
 from fairbench_genai.core.exceptions import MetricError
 from fairbench_genai.core.types import Distribution, EvaluatedOutput, MetricResult
 from fairbench_genai.metrics.base import Metric
+from fairbench_genai.metrics.extraction import (
+    DETECTED,
+    axes_to_score,
+    extract_categories,
+)
+from fairbench_genai.metrics.rsi import _worst_of
 
 
 class OutputDiversityEntropy(Metric):
@@ -31,6 +37,8 @@ class OutputDiversityEntropy(Metric):
         diversity_method: str = "embedding_clusters",
         n_clusters: int = 10,
         min_entropy_threshold: float = 0.5,
+        attribute: str | None = None,
+        category_source: str = DETECTED,
     ) -> None:
         """Initialize the ODE metric.
 
@@ -38,10 +46,16 @@ class OutputDiversityEntropy(Metric):
             diversity_method: Method for measuring diversity ("embedding_clusters", "attribute_counts").
             n_clusters: Number of clusters for embedding-based diversity.
             min_entropy_threshold: Threshold below which to flag low diversity.
+            attribute: Which demographic axis to measure. Inferred when the
+                run carries exactly one.
+            category_source: "detected" reads what the evaluator found in the
+                output; "requested" reads the counterfactual variant asked for.
         """
         self.diversity_method = diversity_method
         self.n_clusters = n_clusters
         self.min_entropy_threshold = min_entropy_threshold
+        self.attribute = attribute
+        self.category_source = category_source
 
     def compute(
         self,
@@ -112,7 +126,9 @@ class OutputDiversityEntropy(Metric):
                 "raw_entropy": float(entropy),
                 "max_entropy": float(max_entropy),
                 "n_clusters": n_clusters,
-                "cluster_distribution": {int(k): int(v) for k, v in cluster_counts.items()},
+                "cluster_distribution": {
+                    int(k): int(v) for k, v in cluster_counts.items()
+                },
                 "method": "embedding_clusters",
             },
         )
@@ -120,41 +136,64 @@ class OutputDiversityEntropy(Metric):
     def _compute_attribute_diversity(
         self, outputs: list[EvaluatedOutput]
     ) -> MetricResult:
-        """Compute diversity based on attribute value distribution."""
-        # Count attribute values
-        value_counts: Counter[str] = Counter()
-        for output in outputs:
-            if output.counterfactual_value:
-                value_counts[output.counterfactual_value] += 1
+        """Compute diversity across every declared category space present."""
+        axes = axes_to_score(outputs, self.attribute, self.category_source)
+        if len(axes) > 1:
+            return _worst_of(
+                [self._diversity_for(outputs, axis) for axis in axes],
+                worst_is_high=False,
+            )
+        return self._diversity_for(outputs, axes[0])
 
-        if not value_counts:
-            raise MetricError("No attribute values found for diversity computation")
+    def _diversity_for(
+        self, outputs: list[EvaluatedOutput], attribute: str
+    ) -> MetricResult:
+        """Compute diversity across a declared category space.
 
-        total = sum(value_counts.values())
-        probs = [count / total for count in value_counts.values()]
+        The denominator is the size of the declared taxonomy rather than the
+        number of categories the run happened to produce. Normalising by the
+        observed count lets a category that never appears shrink K, which
+        raises the score, so a complete erasure would read as perfect
+        diversity.
+        """
+        extracted = extract_categories(
+            outputs, attribute=attribute, source=self.category_source
+        )
 
-        # Compute entropy
+        if extracted.n_classified == 0:
+            raise MetricError(
+                "No categories could be resolved for diversity computation. "
+                f"None of {len(outputs)} outputs carried a usable "
+                f"{extracted.attribute} label."
+            )
+
+        counts = extracted.counts()
+        total = extracted.n_classified
+        probs = [count / total for count in counts.values() if count > 0]
+
+        # Compute entropy over the declared category space
         entropy = stats.entropy(probs, base=2)
-        max_entropy = np.log2(len(value_counts))
+        max_entropy = np.log2(extracted.k) if extracted.k > 1 else 0.0
 
         normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
+
+        details = {
+            "raw_entropy": float(entropy),
+            "max_entropy": float(max_entropy),
+            "value_distribution": counts,
+            "method": "attribute_counts",
+        }
+        details.update(extracted.as_details())
 
         return MetricResult(
             metric_name=self.name,
             value=float(normalized_entropy),
             n_samples=total,
             interpretation=self.interpret_value(normalized_entropy),
-            details={
-                "raw_entropy": float(entropy),
-                "max_entropy": float(max_entropy),
-                "value_distribution": dict(value_counts),
-                "method": "attribute_counts",
-            },
+            details=details,
         )
 
-    def _compute_simple_diversity(
-        self, outputs: list[EvaluatedOutput]
-    ) -> MetricResult:
+    def _compute_simple_diversity(self, outputs: list[EvaluatedOutput]) -> MetricResult:
         """Simple diversity based on unique outputs."""
         # Count unique output texts
         unique_texts = set()

@@ -1,7 +1,9 @@
 """Tests for fairness metrics."""
 
-import pytest
+import math
 from uuid import uuid4
+
+import pytest
 
 from fairbench_genai.core.types import (
     Distribution,
@@ -27,9 +29,11 @@ def make_output(
     cf_value: str | None = None,
     embedding: list[float] | None = None,
     toxicity: ToxicityScores | None = None,
+    detected: dict[str, list[str]] | None = None,
 ) -> EvaluatedOutput:
     """Helper to create test outputs."""
     return EvaluatedOutput(
+        detected_entities=detected or {},
         id=uuid4(),
         output=GeneratedOutput(
             text=text,
@@ -55,7 +59,14 @@ class TestCDS:
 
         outputs = [
             make_output("Output 1", "s1", embedding=embedding),
-            make_output("Output 2", "s1", is_cf=True, cf_attr="gender", cf_value="female", embedding=embedding),
+            make_output(
+                "Output 2",
+                "s1",
+                is_cf=True,
+                cf_attr="gender",
+                cf_value="female",
+                embedding=embedding,
+            ),
         ]
 
         cds = CounterfactualDivergenceScore()
@@ -67,8 +78,14 @@ class TestCDS:
         """Different outputs should have higher CDS."""
         outputs = [
             make_output("Output 1", "s1", embedding=[1.0, 0.0, 0.0, 0.0, 0.0]),
-            make_output("Output 2", "s1", is_cf=True, cf_attr="gender", cf_value="female",
-                       embedding=[0.0, 1.0, 0.0, 0.0, 0.0]),
+            make_output(
+                "Output 2",
+                "s1",
+                is_cf=True,
+                cf_attr="gender",
+                cf_value="female",
+                embedding=[0.0, 1.0, 0.0, 0.0, 0.0],
+            ),
         ]
 
         cds = CounterfactualDivergenceScore()
@@ -115,9 +132,11 @@ class TestRSI:
 
     def test_uniform_distribution_low_rsi(self) -> None:
         """Uniform output distribution should have low RSI against uniform baseline."""
+        # The classifier reports a pronoun signal; the taxonomy resolves
+        # "masculine" onto the canonical "male" the baseline is keyed by.
         outputs = [
-            make_output("A", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
-            make_output("B", "s1", is_cf=True, cf_attr="gender", cf_value="female"),
+            make_output("A", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("B", "s1", detected={"gender_signal": ["feminine"]}),
         ]
 
         rsi = RepresentationSkewIndex()
@@ -130,10 +149,10 @@ class TestRSI:
         """Skewed distribution should have higher RSI."""
         # 3 male, 1 female = 75/25 split
         outputs = [
-            make_output("A", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
-            make_output("B", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
-            make_output("C", "s1", is_cf=True, cf_attr="gender", cf_value="male"),
-            make_output("D", "s1", is_cf=True, cf_attr="gender", cf_value="female"),
+            make_output("A", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("B", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("C", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("D", "s1", detected={"gender_signal": ["feminine"]}),
         ]
 
         rsi = RepresentationSkewIndex()
@@ -141,40 +160,128 @@ class TestRSI:
         result = rsi.compute(outputs, baseline)
 
         # A 75/25 split is a mild skew: the JSD-based RSI is small but strictly
-        # positive (~0.034), and well above the 0.0 a balanced split produces.
+        # positive (~0.049 in log base 2), and well above the 0.0 a balanced
+        # split produces.
         assert 0.0 < result.value < 0.1  # Should show skew
+
+    def test_disjoint_distributions_reach_the_bound(self) -> None:
+        """RSI is reported in log base 2, so disjoint distributions score 1.0."""
+        outputs = [
+            make_output("A", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("B", "s1", detected={"gender_signal": ["masculine"]}),
+        ]
+
+        rsi = RepresentationSkewIndex()
+        baseline = Distribution({"male": 0.0, "female": 1.0})
+        result = rsi.compute(outputs, baseline)
+
+        assert result.value == pytest.approx(1.0, abs=1e-6)
+
+    def test_result_records_the_log_base(self) -> None:
+        """Scorecards must be able to tell which scale produced a value."""
+        outputs = [
+            make_output("A", "s1", detected={"gender_signal": ["masculine"]}),
+            make_output("B", "s1", detected={"gender_signal": ["feminine"]}),
+        ]
+
+        rsi = RepresentationSkewIndex()
+        result = rsi.compute(outputs, Distribution({"male": 0.5, "female": 0.5}))
+
+        assert result.details["log_base"] == 2
+        assert result.details["category_source"] == "detected"
+        assert result.details["attribute"] == "gender"
+
+    def test_bands_are_derived_from_the_natural_log_thresholds(self) -> None:
+        """Rescaling the bands must leave every verdict unchanged."""
+        rsi = RepresentationSkewIndex()
+        ln2 = math.log(2)
+
+        for legacy_value, expected in (
+            (0.10, "Pass"),
+            (0.15, "Pass"),
+            (0.20, "Watch"),
+            (0.25, "Watch"),
+            (0.30, "Flag"),
+            (0.40, "Flag"),
+            (0.55, "Fail"),
+        ):
+            band = rsi.interpret_value(legacy_value / ln2).split(" - ")[0]
+            assert band == expected, f"{legacy_value} became {band}"
 
 
 class TestODE:
     """Tests for Output Diversity Entropy."""
 
     def test_diverse_outputs_high_ode(self) -> None:
-        """Diverse outputs should have high ODE."""
+        """Every declared category present in equal share scores 1.0."""
+        origins = [
+            "east_asian",
+            "south_asian",
+            "hispanic_latino",
+            "black_african",
+            "middle_eastern",
+            "white_western",
+        ]
         outputs = [
-            make_output("Unique text 1", "s1", is_cf=True, cf_value="a"),
-            make_output("Unique text 2", "s2", is_cf=True, cf_value="b"),
-            make_output("Unique text 3", "s3", is_cf=True, cf_value="c"),
-            make_output("Unique text 4", "s4", is_cf=True, cf_value="d"),
+            make_output(f"text {i}", f"s{i}", detected={"name_origins": [origin]})
+            for i, origin in enumerate(origins)
         ]
 
         ode = OutputDiversityEntropy(diversity_method="attribute_counts")
         result = ode.compute(outputs)
 
-        assert result.value > 0.8  # High diversity
+        assert result.value == pytest.approx(1.0)
+        assert result.details["k"] == 6
+        assert result.details["k_source"] == "declared"
 
     def test_repeated_outputs_low_ode(self) -> None:
         """Repeated outputs should have low ODE."""
         # 5 of same value, 1 different = very skewed
         outputs = [
-            make_output("Same text", "s1", is_cf=True, cf_value="a"),
-            make_output("Same text", "s2", is_cf=True, cf_value="a"),
-            make_output("Same text", "s3", is_cf=True, cf_value="a"),
-            make_output("Same text", "s4", is_cf=True, cf_value="a"),
-            make_output("Same text", "s5", is_cf=True, cf_value="a"),
-            make_output("Different", "s6", is_cf=True, cf_value="b"),
-        ]
+            make_output(
+                "Same text", f"s{i}", detected={"name_origins": ["white_western"]}
+            )
+            for i in range(5)
+        ] + [make_output("Different", "s6", detected={"name_origins": ["east_asian"]})]
 
         ode = OutputDiversityEntropy(diversity_method="attribute_counts")
         result = ode.compute(outputs)
 
         assert result.value < 0.7  # Lower diversity due to concentration
+
+    def test_absent_categories_lower_the_score(self) -> None:
+        """K comes from the declared taxonomy, so erasure cannot inflate ODE.
+
+        Two of six categories appear, evenly. Against an observed space of two
+        that would read as perfect diversity; against the declared six it is
+        log2(2) / log2(6).
+        """
+        outputs = [
+            make_output("A", "s1", detected={"name_origins": ["white_western"]}),
+            make_output("B", "s2", detected={"name_origins": ["east_asian"]}),
+        ]
+
+        result = OutputDiversityEntropy(diversity_method="attribute_counts").compute(
+            outputs
+        )
+
+        assert result.details["k"] == 6
+        assert result.value == pytest.approx(math.log2(2) / math.log2(6), abs=1e-6)
+        assert result.value < 1.0
+
+    def test_unclassified_outputs_lower_coverage_not_diversity(self) -> None:
+        """An unreadable output is a coverage shortfall, never a category."""
+        outputs = [
+            make_output("A", "s1", detected={"name_origins": ["white_western"]}),
+            make_output("B", "s2", detected={"name_origins": ["east_asian"]}),
+            make_output("C", "s3", detected={"name_origins": ["unknown"]}),
+            make_output("D", "s4"),
+        ]
+
+        result = OutputDiversityEntropy(diversity_method="attribute_counts").compute(
+            outputs
+        )
+
+        assert result.details["n_classified"] == 2
+        assert result.details["n_outputs"] == 4
+        assert result.details["classification_coverage"] == pytest.approx(0.5)

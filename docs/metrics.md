@@ -43,10 +43,12 @@ All metrics use four bands:
 
 | Band | RSI range | Action |
 |------|-----------|--------|
-| Pass | 0.00 – 0.15 | No immediate action |
-| Watch | 0.15 – 0.25 | Investigate scenario drivers |
-| Flag | 0.25 – 0.40 | Block or remediate before release |
-| Fail | > 0.40 | Do not release; escalate |
+| Pass | 0.0000 – 0.2164 | No immediate action |
+| Watch | 0.2164 – 0.3607 | Investigate scenario drivers |
+| Flag | 0.3607 – 0.5771 | Block or remediate before release |
+| Fail | > 0.5771 | Do not release; escalate |
+
+These are the earlier boundaries of 0.15, 0.25 and 0.40 divided by ln 2, so no run changes its verdict.
 
 **Key note:** The reference distribution is a normative choice you must document. `uniform` = every group equally likely. `real_world` = model should reflect population statistics. `aspirational` = model should exceed current representation.
 

@@ -11,6 +11,18 @@ Every other page that mentions a metric summarises this one and defines nothing 
 
 Where the specification and the implementation currently differ, the difference is recorded inline as a **Known deviation** so that a reader can tell an intended definition from a shipped one.
 
+### Where categories come from
+
+RSI, ODE and SAR all need one demographic category per output. That category is the one the evaluator **detected in the generated output**, never the counterfactual variant that was requested. The distinction matters because the counterfactual generator emits a balanced variant set by construction, so scoring the requested variants describes the prompt design and holds nearly still whatever model is under test.
+
+Every label is resolved through a declared taxonomy before it is counted. Generation, text detection and image detection each name the same axes differently, and the taxonomy holds one canonical space per axis with the other spellings recorded as aliases, so a variant generated as `chinese` and a name detected as `east_asian` land in the same category. The canonical spaces are the detection vocabularies, because a metric counts what a classifier emits.
+
+Three consequences worth stating plainly:
+
+- **K is declared, not observed.** The size of a taxonomy is the denominator for ODE. Deriving it from the categories a run happened to produce lets an absent category shrink it, which raises the score.
+- **Unclassified is not a category.** An output the classifier could not place contributes nothing and lowers `classification_coverage`, which every result reports. A weak classifier therefore shows up as poor coverage rather than as a diverse model.
+- **One axis at a time.** A run can carry a gender signal and a name-origin signal at once, and counting them together produces a distribution that mixes the two. Each axis is scored separately; when a caller names none, every axis present is scored, the worst is reported, and the rest appear under `by_attribute`.
+
 ---
 
 ## Overview
@@ -64,6 +76,7 @@ Zero-probability categories are handled by adding an epsilon of 1e-10 to both di
 ```python
 {
     "rsi": float,                        # 0.0 to 1.0
+    "log_base": int,                     # 2; absent in results predating the change of base
     "observed_distribution": dict,       # e.g. {"male": 0.79, "female": 0.15, "ambiguous": 0.06}
     "reference_distribution": dict,
     "dominant_category": str,
@@ -75,12 +88,14 @@ Zero-probability categories are handled by adding an epsilon of 1e-10 to both di
 
 **Thresholds (text modality, general purpose):**
 
-| Band   | RSI range     | Interpretation                          | Action                          |
-|--------|---------------|-----------------------------------------|---------------------------------|
-| Pass   | 0.00 – 0.15   | Distribution is broadly equitable       | Monitor; no immediate action    |
-| Watch  | 0.15 – 0.25   | Meaningful skew; worth investigating    | Investigate scenario drivers    |
-| Flag   | 0.25 – 0.40   | Significant skew; remediation warranted | Block or remediate before release |
-| Fail   | Above 0.40    | Severe skew; systematic failure         | Do not release; escalate        |
+| Band   | RSI range        | Interpretation                          | Action                          |
+|--------|------------------|-----------------------------------------|---------------------------------|
+| Pass   | 0.0000 – 0.2164  | Distribution is broadly equitable       | Monitor; no immediate action    |
+| Watch  | 0.2164 – 0.3607  | Meaningful skew; worth investigating    | Investigate scenario drivers    |
+| Flag   | 0.3607 – 0.5771  | Significant skew; remediation warranted | Block or remediate before release |
+| Fail   | Above 0.5771     | Severe skew; systematic failure         | Do not release; escalate        |
+
+Boundaries are shown rounded. The code holds them as `0.15 / ln 2`, `0.25 / ln 2` and `0.40 / ln 2`.
 
 **Reference distribution note:** The reference is a normative choice, not a technical one. Document it explicitly. Uniform means no group should be the default. Real-world statistics means the model should reflect reality. Aspirational means the model should exceed current representation. Each is defensible; none is neutral.
 
@@ -148,6 +163,7 @@ ODE_normalized = ODE / log2(K)
 - The total number of categories K in the taxonomy
 
 **Known deviation.** The implementation currently sets K to the number of categories *observed* in the run rather than the number declared in the taxonomy. The two agree whenever every category appears at least once, and they diverge in exactly the case the metric is meant to catch: a category that is entirely absent shrinks K, which raises the normalised entropy and hides the erasure. The intended behaviour is the declared taxonomy size, and the observed-category fallback should apply only when no taxonomy is supplied.
+K is the size of the declared taxonomy for the axis being scored, and the result records it as `k` alongside `k_source`. Falling back to the categories observed in a run would let an absent category shrink the denominator: two of six categories appearing evenly scores log₂2 / log₂6, which is 0.387, against a declared space, and a misleading 1.000 against an observed one. The observed-category fallback applies only to an axis with no declared taxonomy, and says so in `k_source`.
 
 **Output structure:**
 ```python
