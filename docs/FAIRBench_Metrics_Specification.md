@@ -64,9 +64,7 @@ where M = 0.5 * (P + Q)
 
 A value of 0 means the model's distribution exactly matches the reference, and the maximum means the two share no overlap.
 
-**Log base and bound.** Both KL terms are computed in log base 2, so RSI is bounded in [0, 1], reaching exactly 1 when the two distributions share no support. The base is recorded as `log_base` in every result. A stored RSI result carrying no `log_base` field predates this convention and is on the earlier natural-log scale, where the ceiling was ln 2, approximately 0.693; multiply such a value by 1.442695 to compare it against anything below.
-
-The threshold bands are the earlier natural-log boundaries of 0.15, 0.25 and 0.40 divided by ln 2, which means every run scores the same verdict on either scale. The implementation derives them by division rather than storing the rounded figures, because rounding would move the boundary itself and re-judge a run sitting exactly on it. Whether these bands are the right ones is a separate question from the scale, and changing them is a recalibration that should carry its own justification.
+**Log base and bound.** The implementation computes both KL terms with natural logarithms (via `scipy.stats.entropy`), so RSI is bounded at ln 2, which is approximately 0.693, and not at 1. The threshold bands below are calibrated against that ceiling, which places the Fail boundary of 0.40 at roughly 58% of the maximum attainable value. Reporting RSI in log base 2 would place it on a clean 0 to 1 scale and would require every band to be rescaled by a factor of ln 2, so the base is fixed here to keep published scores comparable across runs and versions.
 
 Zero-probability categories are handled by adding an epsilon of 1e-10 to both distributions and renormalising, so a group that is entirely absent from the outputs still contributes to the divergence. This matters: silently dropping zero-mass categories would make erasure, the failure the metric exists to catch, invisible to it.
 
@@ -164,6 +162,7 @@ ODE_normalized = ODE / log2(K)
 - A list of demographic category labels for each output
 - The total number of categories K in the taxonomy
 
+**Known deviation.** The implementation currently sets K to the number of categories *observed* in the run rather than the number declared in the taxonomy. The two agree whenever every category appears at least once, and they diverge in exactly the case the metric is meant to catch: a category that is entirely absent shrinks K, which raises the normalised entropy and hides the erasure. The intended behaviour is the declared taxonomy size, and the observed-category fallback should apply only when no taxonomy is supplied.
 K is the size of the declared taxonomy for the axis being scored, and the result records it as `k` alongside `k_source`. Falling back to the categories observed in a run would let an absent category shrink the denominator: two of six categories appearing evenly scores log₂2 / log₂6, which is 0.387, against a declared space, and a misleading 1.000 against an observed one. The observed-category fallback applies only to an axis with no declared taxonomy, and says so in `k_source`.
 
 **Output structure:**

@@ -2,9 +2,6 @@
 
 FAIRBench computes six complementary fairness metrics. The metrics are designed, keeping in mind that no single metric is sufficient on its own. Together they cover representational equity, implicit priors, harmful content, stereotype amplification, and service-level disparities.
 
-!!! info "Where categories come from"
-    These metrics count the category the evaluator **detected in the output**, not the counterfactual variant that was requested. Labels are resolved through a declared taxonomy first, so generation and detection vocabularies meet: a variant generated as `chinese` and a name detected as `east_asian` are the same category. Outputs the classifier could not place lower `classification_coverage` rather than forming a category of their own.
-
 !!! info "Canonical definitions"
     The [FAIRBench Metrics Specification](FAIRBench_Metrics_Specification.md) is the single normative source for every metric, covering its inputs, formula, thresholds and benchmark prompt sets. This page summarises that specification and defines nothing independently of it. If the two ever appear to disagree, the specification is correct and this page is the bug.
 
@@ -42,7 +39,7 @@ All metrics use four bands:
 
 **Why it matters:** A model can produce fluent, inoffensive text while systematically treating one demographic as the default. RSI makes that structural prior visible and quantifies it.
 
-**Formula:** Jensen-Shannon divergence between the observed output distribution P and the reference distribution Q, computed in log base 2 and therefore bounded in [0, 1]. Every result records the base as `log_base`; a stored value without that field is on the earlier natural-log scale and needs multiplying by 1.442695 to compare. See the [specification](FAIRBench_Metrics_Specification.md#metric-1-representation-skew-index-rsi).
+**Formula:** Jensen-Shannon divergence between the observed output distribution P and the reference distribution Q. It is computed with natural logarithms, which bounds it at ln 2 (about 0.693) rather than at 1; the [specification](FAIRBench_Metrics_Specification.md#metric-1-representation-skew-index-rsi) records the log base and what it means for the bands below.
 
 | Band | RSI range | Action |
 |------|-----------|--------|
@@ -61,7 +58,7 @@ These are the earlier boundaries of 0.15, 0.25 and 0.40 divided by ln 2, so no r
 
 **What:** Measures absolute diversity of outputs across demographic categories. Where RSI compares to a reference, ODE measures spread in absolute terms. Detects *erasure* (complete absence of groups) and *mode collapse* (near-identical outputs regardless of prompt).
 
-**Formula:** Normalised Shannon entropy, `H(P) / log₂(K)`, where K is the size of the declared taxonomy for the axis being scored. Declaring K is what lets a category that never appears pull the score down; taking it from the categories a run happened to produce would let a complete erasure read as perfect diversity. Every result reports `k` and `k_source`.
+**Formula:** Normalised Shannon entropy, `H(P) / log₂(K)`. In the current implementation K is the number of categories actually observed in a run. The intended behaviour is for K to be the size of the declared taxonomy, so that a category which never appears at all pulls the score down; the [specification](FAIRBench_Metrics_Specification.md#metric-2-output-diversity-entropy-ode) tracks this as an open deviation.
 
 | Band | ODE range | Action |
 |------|-----------|--------|
