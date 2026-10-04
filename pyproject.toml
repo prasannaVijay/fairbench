@@ -37,8 +37,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://prasannavijay.github.io/fairbench/"
-Documentation = "https://prasannavijay.github.io/fairbench/"
+Homepage = "https://fairbench-genai.org/"
+Documentation = "https://fairbench-genai.org/"
 Repository = "https://github.com/prasannaVijay/fairbench"
 Issues = "https://github.com/prasannaVijay/fairbench/issues"
 
