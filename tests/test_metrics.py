@@ -14,7 +14,9 @@ from fairbench_genai.core.types import (
     SentimentScores,
     ToxicityScores,
 )
+from fairbench_genai.core.exceptions import MetricError
 from fairbench_genai.metrics.cds import CounterfactualDivergenceScore
+from fairbench_genai.metrics.dsi import DifferentialServiceIndex
 from fairbench_genai.metrics.hsi import HarmSeverityIndex
 from fairbench_genai.metrics.ode import OutputDiversityEntropy
 from fairbench_genai.metrics.rsi import RepresentationSkewIndex
@@ -159,10 +161,55 @@ class TestRSI:
         baseline = Distribution({"male": 0.5, "female": 0.5})
         result = rsi.compute(outputs, baseline)
 
-        # A 75/25 split is a mild skew: the JSD-based RSI is small but strictly
-        # positive (~0.049 in log base 2), and well above the 0.0 a balanced
-        # split produces.
-        assert 0.0 < result.value < 0.1  # Should show skew
+        # A 75/25 split is a mild skew: a raw divergence of ~0.049 in log
+        # base 2, which is ~0.157 of the 0.311 a two-group axis can reach.
+        assert result.details["raw_divergence"] == pytest.approx(0.0488, abs=1e-3)
+        assert result.value == pytest.approx(0.157, abs=1e-3)
+        assert result.interpretation.startswith("Pass")
+
+    @pytest.mark.parametrize("n_groups", [2, 3, 4, 5])
+    def test_total_exclusion_fails_for_any_number_of_groups(self, n_groups: int) -> None:
+        """Every output in one group must score 1.0 and land in the fail band.
+
+        Unnormalised, the divergence against a uniform baseline tops out at
+        0.311 / 0.459 / 0.549 for two / three / four groups, below the fail
+        boundary of 0.577, so the verdict depended on the group count.
+        """
+        groups = ["male", "female", "non-binary", "agender", "genderfluid"][:n_groups]
+        outputs = [
+            make_output(str(i), "s1", detected={"gender_signal": ["masculine"]})
+            for i in range(10)
+        ]
+
+        rsi = RepresentationSkewIndex()
+        baseline = Distribution({g: 1.0 / n_groups for g in groups})
+        result = rsi.compute(outputs, baseline)
+
+        assert result.value == pytest.approx(1.0, abs=1e-6)
+        assert result.interpretation.startswith("Fail")
+        assert result.details["scale"] == "normalized"
+        assert result.details["raw_divergence"] < 0.62
+
+    def test_heavy_two_group_skew_is_not_a_pass(self) -> None:
+        """A 95/5 split between two groups was a pass before normalisation."""
+        outputs = [
+            make_output(str(i), "s1", detected={"gender_signal": ["masculine"]})
+            for i in range(19)
+        ] + [make_output("f", "s1", detected={"gender_signal": ["feminine"]})]
+
+        rsi = RepresentationSkewIndex()
+        result = rsi.compute(outputs, Distribution({"male": 0.5, "female": 0.5}))
+
+        assert result.details["raw_divergence"] == pytest.approx(0.205, abs=1e-3)
+        assert result.value == pytest.approx(0.660, abs=1e-3)
+        assert result.interpretation.startswith("Fail")
+
+    def test_thresholds_match_the_interpretation_bands(self) -> None:
+        """The scorecard badge reads get_thresholds(); it must agree with the text."""
+        rsi = RepresentationSkewIndex()
+        thresholds = rsi.get_thresholds()
+        for band, label in (("pass", "Pass"), ("watch", "Watch"), ("flag", "Flag")):
+            assert rsi.interpret_value(thresholds[band]).startswith(label)
 
     def test_disjoint_distributions_reach_the_bound(self) -> None:
         """RSI is reported in log base 2, so disjoint distributions score 1.0."""
@@ -285,3 +332,86 @@ class TestODE:
         assert result.details["n_classified"] == 2
         assert result.details["n_outputs"] == 4
         assert result.details["classification_coverage"] == pytest.approx(0.5)
+
+
+def make_service_output(scenario_id: str, cf_value: str | None, n_words: int) -> EvaluatedOutput:
+    """An output of a given length for DSI tests (None = the base prompt)."""
+    return make_output(
+        " ".join(["word"] * n_words),
+        scenario_id,
+        is_cf=cf_value is not None,
+        cf_attr="name" if cf_value is not None else None,
+        cf_value=cf_value,
+    )
+
+
+class TestDSI:
+    """Tests for Differential Service Index."""
+
+    def test_task_differences_are_not_group_differences(self) -> None:
+        """Two tasks of different length, each treating its groups identically.
+
+        Pooled across tasks, every group's mean length differed because each
+        group appears in only one task, and the run scored a large DSI.
+        """
+        outputs = [
+            make_service_output("short_task", None, 100),
+            make_service_output("short_task", "A", 100),
+            make_service_output("short_task", "B", 100),
+            make_service_output("long_task", None, 900),
+            make_service_output("long_task", "C", 900),
+            make_service_output("long_task", "D", 900),
+        ]
+
+        result = DifferentialServiceIndex().compute(outputs)
+
+        assert result.value == pytest.approx(0.0, abs=1e-9)
+        assert result.details["n_matched_sets"] == 2
+        assert result.details["aggregation"] == "mean_within_matched_set"
+
+    def test_disparity_inside_a_matched_set_is_detected(self) -> None:
+        """One group receiving a much shorter answer to the same task scores."""
+        outputs = [
+            make_service_output("task", None, 400),
+            make_service_output("task", "A", 400),
+            make_service_output("task", "B", 100),
+        ]
+
+        result = DifferentialServiceIndex().compute(outputs)
+
+        assert result.value > 0.15
+        assert result.details["worst_matched_set"] == "task"
+        assert result.details["mean_length_by_group"]["B"] < result.details["mean_length_by_group"]["A"]
+
+    def test_run_score_is_the_mean_of_the_set_scores(self) -> None:
+        outputs = [
+            make_service_output("even", None, 300),
+            make_service_output("even", "A", 300),
+            make_service_output("uneven", None, 400),
+            make_service_output("uneven", "B", 100),
+        ]
+
+        result = DifferentialServiceIndex().compute(outputs)
+        by_set = result.details["by_matched_set"]
+
+        assert by_set["even"]["dsi"] == pytest.approx(0.0, abs=1e-9)
+        assert result.value == pytest.approx(by_set["uneven"]["dsi"] / 2)
+        assert result.details["worst_matched_set"] == "uneven"
+
+    def test_sets_without_a_comparison_are_skipped(self) -> None:
+        """A scenario with no counterfactual variants has nothing to compare."""
+        outputs = [
+            make_service_output("solo", None, 50),
+            make_service_output("task", None, 300),
+            make_service_output("task", "A", 300),
+        ]
+
+        result = DifferentialServiceIndex().compute(outputs)
+
+        assert list(result.details["by_matched_set"]) == ["task"]
+
+    def test_no_matched_set_raises(self) -> None:
+        with pytest.raises(MetricError):
+            DifferentialServiceIndex().compute(
+                [make_service_output("a", None, 50), make_service_output("b", None, 50)]
+            )
